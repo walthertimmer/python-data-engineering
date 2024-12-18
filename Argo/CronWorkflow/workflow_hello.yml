@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: CronWorkflow
 metadata:
   name: cron-workflow-python-hello # or use generateName
-  namespace: default
+  namespace: argo
   labels:
     app: python-hello
     environment: production
@@ -14,7 +14,7 @@ spec:
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   workflowSpec:
-    #serviceAccountName: argo-service-account
+    serviceAccountName: argo-workflows-server
     entrypoint: run-script
     templates:
     - name: run-script
