@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  generateName: python-script-cron
+spec:
+  schedule: "0 0 * * *"  # Runs daily at midnight
+  workflowSpec:
+    entrypoint: run-script
+    templates:
+    - name: run-script
+      container:
+        image: ghcr.io/walthertimmer/python-scripts:latest
+        command: ["python", "/scripts/hello.py"]
+        imagePullPolicy: Always
+    - name: run-script
+      container:
+        image: ghcr.io/walthertimmer/python-scripts:latest
+        command: ["python", "/scripts/hello_dynamic.py"]
+        imagePullPolicy: Always
+        env:
+          - name: NAME
+            valueFrom:
+              secretKeyRef:
+                name: python-data-engineering
+                key: NAME
