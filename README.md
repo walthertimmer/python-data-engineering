@@ -56,5 +56,5 @@ kubectl create secret generic python-data-engineering \
 
 ### To do
 
-Schedule all workflows on argo as a step in the github workflow.  
-Set/update the kubernetes secret (safely) using workflow.  
+- Schedule all workflows on argo as a step in the github workflow.  
+- Set/update the kubernetes secret (safely) using workflow.  

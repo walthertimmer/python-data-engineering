@@ -1,25 +1,69 @@
 apiVersion: argoproj.io/v1alpha1
 kind: CronWorkflow
 metadata:
-  generateName: python-script-cron
+  name: cron-workflow-python-hello # or use generateName
+  labels:
+    app: python-hello
+    environment: production
+  annotations:
+    description: "Runs Python Hello scripts on schedule"
 spec:
   schedule: "0 0 * * *"  # Runs daily at midnight
+  concurrencyPolicy: Replace  # Options: Allow, Forbid, Replace
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
   workflowSpec:
+    #serviceAccountName: argo-service-account
     entrypoint: run-script
     templates:
-    - name: run-script
+    - name: run-scripts
+      dag:
+        tasks:
+        - name: hello-task
+          template: run-script-hello
+        - name: dynamic-hello-task
+          template: run-script-hello-dynamic
+          dependencies: ["hello-task"]
+
+    - name: run-script-hello
       container:
         image: ghcr.io/walthertimmer/python-scripts:latest
         command: ["python", "/scripts/hello.py"]
         imagePullPolicy: Always
-    - name: run-script
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "250m"
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+
+    - name: run-script-hello-dynamic
       container:
         image: ghcr.io/walthertimmer/python-scripts:latest
         command: ["python", "/scripts/hello_dynamic.py"]
         imagePullPolicy: Always
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "250m"
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
         env:
           - name: NAME
             valueFrom:
               secretKeyRef:
                 name: python-data-engineering
                 key: NAME
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+    
+# Workflow-level retry strategy
+retryStrategy:
+  limit: 1
+  retryPolicy: OnError
+
+
+
