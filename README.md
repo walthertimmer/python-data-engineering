@@ -42,7 +42,13 @@ Run local:
 
 ### Add scheduled workflow on Kubernetes with Argo
 
-- ```kubectl create -f Argo/workflow_hello.yml```
+One:  
+
+- ```kubectl apply -f Argo/CronWorkflow/workflow_hello.yml```
+
+Or all at once:
+
+- ```kubectl apply -f Argo/CronWorkflow/```
 
 ### Add secrets in Kubernetes cluster to be used by Python scripts
 

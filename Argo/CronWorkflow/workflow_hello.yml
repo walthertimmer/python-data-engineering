@@ -2,6 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: CronWorkflow
 metadata:
   name: cron-workflow-python-hello # or use generateName
+  namespace: default
   labels:
     app: python-hello
     environment: production
@@ -11,12 +12,12 @@ spec:
   schedule: "0 0 * * *"  # Runs daily at midnight
   concurrencyPolicy: Replace  # Options: Allow, Forbid, Replace
   successfulJobsHistoryLimit: 3
-  failedJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
   workflowSpec:
     #serviceAccountName: argo-service-account
     entrypoint: run-script
     templates:
-    - name: run-scripts
+    - name: run-script
       dag:
         tasks:
         - name: hello-task
@@ -27,7 +28,7 @@ spec:
 
     - name: run-script-hello
       container:
-        image: ghcr.io/walthertimmer/python-scripts:latest
+        image: ghcr.io/walthertimmer/python-data-engineering/python-scripts:latest
         command: ["python", "/scripts/hello.py"]
         imagePullPolicy: Always
         resources:
@@ -40,7 +41,7 @@ spec:
 
     - name: run-script-hello-dynamic
       container:
-        image: ghcr.io/walthertimmer/python-scripts:latest
+        image: ghcr.io/walthertimmer/python-data-engineering/python-scripts:latest
         command: ["python", "/scripts/hello_dynamic.py"]
         imagePullPolicy: Always
         resources:
@@ -60,10 +61,17 @@ spec:
           runAsNonRoot: true
           runAsUser: 1000
     
-# Workflow-level retry strategy
-retryStrategy:
-  limit: 1
-  retryPolicy: OnError
-
+  # Workflow-level retry strategy
+  retryStrategy:
+    limit: 1
+    retryPolicy: OnError
+  # must complete in 8h (28,800 seconds)
+  activeDeadlineSeconds: 28800
+  # keep workflows for 1d (86,400 seconds)
+  ttlStrategy:
+    secondsAfterCompletion: 86400
+  # delete all pods as soon as they complete
+  podGC:
+    strategy: OnPodCompletion
 
 
