@@ -65,6 +65,15 @@ kubectl create secret generic python-data-engineering \
     --dry-run=client -o yaml | kubectl apply -f -
 ```
 
+### Set local env
+
+Create a .env to contain the local envs to test locally using:
+
+```python
+from dotenv import load_dotenv
+load_dotenv()
+```
+
 ### To do
 
 - Schedule all workflows on argo as a step in the github workflow.  

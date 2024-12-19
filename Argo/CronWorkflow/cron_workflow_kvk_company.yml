@@ -1,0 +1,65 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: cron-workflow-kvk-company
+  namespace: argo
+  labels:
+    app: kvk-data-loader
+    environment: production
+  annotations:
+    description: "Weekly extraction of KVK company data to S3"
+
+spec:
+  schedule: "0 0 * * 0"  # Runs every Sunday at midnight
+  concurrencyPolicy: Replace
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  workflowSpec:
+    serviceAccountName: argo-workflows-server
+    entrypoint: extract-kvk-data
+    templates:
+    - name: extract-kvk-data
+      container:
+        image: ghcr.io/walthertimmer/python-data-engineering/python-scripts:latest
+        command: ["python", "/scripts/extract_kvk_company_data.py"]
+        imagePullPolicy: Always
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi" 
+            cpu: "500m"
+        env:
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: python-data-engineering
+                key: AWS_ACCESS_KEY_ID
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: python-data-engineering
+                key: AWS_SECRET_ACCESS_KEY
+          - name: S3_ENDPOINT_URL
+            valueFrom:
+              secretKeyRef:
+                name: python-data-engineering
+                key: S3_ENDPOINT_URL
+          - name: S3_BUCKET
+            valueFrom:
+              secretKeyRef:
+                name: python-data-engineering
+                key: S3_BUCKET
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+
+    retryStrategy:
+      limit: 1
+      retryPolicy: OnError
+    activeDeadlineSeconds: 3600  # Must complete within 1 hour
+    ttlStrategy:
+      secondsAfterCompletion: 86400  # Keep workflows for 1 day
+    podGC:
+      strategy: OnPodCompletion
