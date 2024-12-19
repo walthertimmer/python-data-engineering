@@ -57,8 +57,12 @@ Secrets should be put in Kubernetes secret to be used by the Docker container. D
 ```bash
 kubectl create secret generic python-data-engineering \
     --namespace argo \
-  --from-literal=NAME=walther \
-  --dry-run=client -o yaml | kubectl apply -f -
+    --from-literal=NAME=xxx \
+    --from-literal=AWS_ACCESS_KEY_ID=xxx \
+    --from-literal=AWS_SECRET_ACCESS_KEY=xxx \
+    --from-literal=S3_ENDPOINT_URL=xxx \
+    --from-literal=S3_BUCKET=xxx \
+    --dry-run=client -o yaml | kubectl apply -f -
 ```
 
 ### To do
