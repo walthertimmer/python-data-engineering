@@ -9,16 +9,20 @@ Resources:
 
 """
 
-import logging
-import os
-import sys
-from datetime import datetime
-from typing import Optional
-import zipfile
-import requests
-import boto3
-from dotenv import load_dotenv
-load_dotenv()
+try: 
+    import logging
+    import os
+    import sys
+    from datetime import datetime
+    from typing import Optional
+    import zipfile
+    import requests
+    import boto3
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception as e:
+    print(f"Error during imports: {str(e)}")
+    exit(1)   
 
 def setup_logging(log_level: str = "INFO") -> None:
     """Configure logging with timestamp, level and message"""
@@ -90,7 +94,7 @@ def main() -> None:
     """Main function"""
     try:
         # Setup logging
-        setup_logging()
+        setup_logging(log_level="INFO")
         logger = logging.getLogger(__name__)
         
         # Log script start
