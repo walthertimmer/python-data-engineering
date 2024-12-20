@@ -28,8 +28,8 @@ spec:
             memory: "256Mi"
             cpu: "250m"
           limits:
-            memory: "512Mi" 
-            cpu: "500m"
+            memory: "1Gi" 
+            cpu: "1"
         env:
           - name: AWS_ACCESS_KEY_ID
             valueFrom:
@@ -54,6 +54,32 @@ spec:
         securityContext:
           runAsNonRoot: true
           runAsUser: 1000
+        # volumeMounts:
+        #   - name: varlog
+        #     mountPath: /var/log
+
+    # sidecars:
+    # - name: fluentd
+    #   image: fluent/fluentd:latest
+    #   resources:
+    #     requests:
+    #       memory: "64Mi"
+    #       cpu: "50m"
+    #     limits:
+    #       memory: "128Mi"
+    #       cpu: "100m"
+    #   volumeMounts:
+    #     - name: varlog
+    #       mountPath: /var/log
+    #   env:
+    #     - name: FLUENTD_ARGS
+    #       value: "--no-supervisor -q"
+    #   command: ["fluentd"]
+    #   args: ["-c", "/fluentd/etc/fluent.conf"]
+
+    # volumes:
+    # - name: varlog
+    #   emptyDir: {}
 
     retryStrategy:
       limit: 1

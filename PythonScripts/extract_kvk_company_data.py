@@ -9,7 +9,7 @@ Resources:
 
 """
 
-try: 
+try:
     import logging
     import os
     import sys
