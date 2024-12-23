@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: workflow-s3-test # or use generateName
+  namespace: argo
+spec:
+  serviceAccountName: argo-workflows-server
+  entrypoint: main
+  templates:
+  - name: main
+    container:
+      image: alpine:3.7
+      command: [sh, -c]
+      args: ["echo 'Hello, Argo!' > /tmp/hello_world.txt"]
+    outputs:
+      artifacts:
+      - name: hello-world
+        path: /tmp/hello_world.txt
+        s3:
+          endpoint: datahub.nbg1.your-objectstorage.com
+          bucket: datahub
+          keyPrefix: test/
+          accessKeySecret:
+            name: python-data-engineering
+            key: S3_ACCESS_KEY_ID
+            namespace: argo
+          secretKeySecret:
+            name: python-data-engineering
+            key: S3_SECRET_ACCESS_KEY
+            namespace: argo

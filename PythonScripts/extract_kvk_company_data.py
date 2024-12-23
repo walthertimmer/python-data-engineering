@@ -52,15 +52,15 @@ def extract_zip_file(zip_file: str, extract_dir: str) -> None:
 
 def get_s3_client():
     """Create S3 client with custom endpoint"""
-    aws_access_key = get_env_var("AWS_ACCESS_KEY_ID")
-    aws_secret_key = get_env_var("AWS_SECRET_ACCESS_KEY")
-    endpoint_url = get_env_var("S3_ENDPOINT_URL")
+    s3_access_key = get_env_var("S3_ACCESS_KEY_ID")
+    s3_secret_key = get_env_var("S3_SECRET_ACCESS_KEY")
+    s3_endpoint_url = get_env_var("S3_ENDPOINT_URL")
     
     return boto3.client(
         's3',
-        aws_access_key_id=aws_access_key,
-        aws_secret_access_key=aws_secret_key,
-        endpoint_url=endpoint_url,
+        s3_access_key_id=s3_access_key,
+        s3_secret_access_key=s3_secret_key,
+        s3_endpoint_url=s3_endpoint_url,
         verify=True  # SSL verification
     )
 

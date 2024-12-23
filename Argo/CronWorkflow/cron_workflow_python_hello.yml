@@ -11,8 +11,8 @@ metadata:
 spec:
   schedule: "0 0 * * *"  # Runs daily at midnight
   concurrencyPolicy: Replace  # Options: Allow, Forbid, Replace
-  successfulJobsHistoryLimit: 3
-  failedJobsHistoryLimit: 3
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
   workflowSpec:
     serviceAccountName: argo-workflows-server
     entrypoint: run-script
