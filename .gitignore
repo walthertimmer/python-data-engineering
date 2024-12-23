@@ -162,3 +162,5 @@ cython_debug/
 
 # local pyworkspace
 .work-folder-info
+kvk-open-data-set-handelsregister/kvk-open-data-set-handelsregister.csv
+kvk-open-data-set-handelsregister.zip

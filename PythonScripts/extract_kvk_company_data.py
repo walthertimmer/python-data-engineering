@@ -9,20 +9,21 @@ Resources:
 
 """
 
+import logging
+import os
+import sys
+from datetime import datetime
+from typing import Optional
+import zipfile
+import requests
+import boto3
+from dotenv import load_dotenv
+
 try:
-    import logging
-    import os
-    import sys
-    from datetime import datetime
-    from typing import Optional
-    import zipfile
-    import requests
-    import boto3
-    from dotenv import load_dotenv
     load_dotenv()
 except Exception as e:
-    print(f"Error during imports: {str(e)}")
-    exit(1)   
+    print(f"Failed to load .env file: {str(e)}")
+    pass
 
 def setup_logging(log_level: str = "INFO") -> None:
     """Configure logging with timestamp, level and message"""
@@ -58,9 +59,9 @@ def get_s3_client():
     
     return boto3.client(
         's3',
-        s3_access_key_id=s3_access_key,
-        s3_secret_access_key=s3_secret_key,
-        s3_endpoint_url=s3_endpoint_url,
+        aws_access_key_id=s3_access_key,
+        aws_secret_access_key=s3_secret_key,
+        endpoint_url=s3_endpoint_url,
         verify=True  # SSL verification
     )
 
