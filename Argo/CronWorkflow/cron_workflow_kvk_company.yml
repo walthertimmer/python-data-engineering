@@ -20,21 +20,8 @@ spec:
     - name: run-script
       dag:
         tasks:
-        - name: debug
-          template: debug
         - name: extract-kvk-data
           template: extract-kvk-data
-          dependencies: ["debug"]
-
-    - name: debug
-      container:
-        image: ghcr.io/walthertimmer/python-data-engineering/python-scripts:latest
-        command: ["python", "-c", 'print("test!")']
-        imagePullPolicy: Always
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "500m"
 
     - name: extract-kvk-data
       container:
