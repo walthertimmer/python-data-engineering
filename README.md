@@ -74,6 +74,14 @@ from dotenv import load_dotenv
 load_dotenv()
 ```
 
+### Docker
+
+Contains Dockerfile to create image containing the python scripts and needed dependencies. 
+
+```bash
+docker build -t python-scripts -f Docker/PythonImage.Dockerfile .
+```
+
 ### To do
 
 - Schedule all workflows on argo as a step in the github workflow.  
