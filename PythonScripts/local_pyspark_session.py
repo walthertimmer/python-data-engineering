@@ -11,8 +11,8 @@ from pyspark.sql import SparkSession
 from pyspark import SparkContext
 
 def get_java_home():
-    """Get Java home directory for Linux container"""
-    logging.basicConfig(level=logging.DEBUG)
+    """Get Java home directory for Linux and macOS"""
+    logging.basicConfig(level=logging.INFO)
     
     def validate_java_path(path):
         """Helper to validate Java installation path"""
@@ -28,24 +28,29 @@ def get_java_home():
         logging.debug(f"Valid Java installation found at: {path}")
         return True
 
-    # Common Linux Java paths
     java_paths = [
+        '/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home',  # Homebrew Java 17, brew install openjdk@17
         '/usr/lib/jvm/java-17-openjdk-amd64',
         '/usr/lib/jvm/java-17-openjdk',
         '/usr/lib/jvm/java-17-openjdk-arm64',
+        '/usr/local/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home',  # Homebrew path
+        '/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home',
+        '/Library/Java/JavaVirtualMachines/openjdk-17.jdk/Contents/Home',
+        '/usr/lib/jvm/java-17-openjdk-amd64',
+        '/usr/lib/jvm/java-17-openjdk',
         '/usr/java/default',
-        '/usr/lib/jvm/default-java'
+        '/usr/lib/jvm/default-java',
     ]
-    
-    # First check environment variable
-    java_home = os.getenv('JAVA_HOME')
-    if java_home and validate_java_path(java_home):
-        return java_home.rstrip('/bin/java')
-        
-    # Then check common paths
+            
+    # check common paths
     for path in java_paths:
         if validate_java_path(path):
             return path
+    
+    # Finally check JAVA_HOME env var
+    java_home = os.getenv('JAVA_HOME')
+    if java_home and validate_java_path(java_home):
+        return java_home
     
     raise RuntimeError("Could not find valid JAVA_HOME path")
 
@@ -81,6 +86,9 @@ spark = (SparkSession.builder
             # Basic Delta Lake configs
             .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
             .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+            # Security
+            .config("spark.hadoop.security.authentication", "simple")
+            .config("spark.security.credentials.enabled", "false")
             # Core packages only
             .config("spark.jars.packages",
                     "org.apache.hadoop:hadoop-aws:3.3.4," + # needed for S3
@@ -119,3 +127,11 @@ spark = (SparkSession.builder
 # Disable security manager
             # .config("spark.driver.extraJavaOptions", "-Djava.security.manager=disallow")
             # .config("spark.executor.extraJavaOptions", "-Djava.security.manager=disallow")
+
+spark.sparkContext.setLogLevel("ERROR")
+ 
+dummy_df = spark.sql(f"""
+            SELECT 1 AS TEST
+        """)
+
+dummy_df.show()

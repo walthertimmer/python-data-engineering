@@ -78,7 +78,6 @@ def list_s3_objects(bucket_name, prefix):
     
 def get_java_home():
     """Get Java home directory for Linux and macOS"""
-    logging.basicConfig(level=logging.DEBUG)
     
     def validate_java_path(path):
         """Helper to validate Java installation path"""
@@ -158,6 +157,9 @@ def init_spark_session():
             # Basic Delta Lake configs
             .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
             .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+            # Security
+            .config("spark.hadoop.security.authentication", "simple")
+            .config("spark.security.credentials.enabled", "false")
             # Core packages only
             .config("spark.jars.packages",
                     "org.apache.hadoop:hadoop-aws:3.3.4," + # needed for S3
@@ -202,7 +204,7 @@ def clean_table_name(table_name):
     logging.info(f"Cleaned table name: {table_name} to {cleaned_table_name}")
     return cleaned_table_name
 
-def create_table(spark, table_name, df,target_folder, source_folder):
+def create_table(spark, table_name, df,target_folder):
     """Create a table using PySpark"""
     logging.info(f"Creating table: {table_name}")
     
@@ -250,6 +252,7 @@ def process_and_create_tables(
     file_format,
     separator = ";"):
     """Process files from bronze folder and create tables in silver folder"""
+    
     if not check_bucket_exists(bucket_name):
         logging.error(f"Bucket {bucket_name} does not exist. Exiting the process.")
         return
@@ -286,7 +289,7 @@ def process_and_create_tables(
         # Create table name from source folder
         table_name = clean_table_name(source_folder)
         
-        create_table(spark, table_name, df, target_folder, source_folder)
+        create_table(spark, table_name, df, target_folder)
         
     except Exception as e:
         logging.error(f"Error reading files from {file_path}: {str(e)}")
