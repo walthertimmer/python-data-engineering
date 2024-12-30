@@ -1,13 +1,13 @@
 apiVersion: argoproj.io/v1alpha1
 kind: CronWorkflow
 metadata:
-  name: cron-workflow-dummy-warehouse
+  name: cron-load-warehouse
   namespace: argo
   labels:
-    app: dummy-warehouse
+    app: cron-load-warehouse
     environment: production
   annotations:
-    description: "Progress dummy csv to delta warehouse on S3"
+    description: "Progress raw to delta warehouse on S3"
 spec:
   schedule: "0 0 * * 0"  # Runs every Sunday at midnight
   concurrencyPolicy: Replace
@@ -20,10 +20,12 @@ spec:
     - name: run-script
       dag:
         tasks:
-        - name: load-warehouse
-          template: load-warehouse
+        - name: load-warehouse-kvk-company
+          template: load-warehouse-kvk-company
+        - name: load-warehouse-dummy
+          template: load-warehouse-dummy
 
-    - name: load-warehouse
+    - name: load-warehouse-kvk-company
       container:
         image: ghcr.io/walthertimmer/python-data-engineering/python-scripts:latest
         command: ["python", "/scripts/20_load_warehouse.py"]
@@ -61,25 +63,25 @@ spec:
                 key: S3_BUCKET
                 namespace: argo
           - name: SOURCE_FOLDER
-            value: "raw/kvk-company/kvk-open-data-set-handelsregister-company.csv"
+            value: "raw/kvk-company/"
           - name: TARGET_FOLDER
-            value: "datahub"
+            value: "warehouse"
           - name: FILE_FORMAT
             value: "csv"
           - name: SEPARATOR
             value: ";"
-          - name: HADOOP_OPTIONAL_TOOLS
-            value: ""
-          - name: SPARK_HADOOP_SECURITY_AUTH
-            value: "simple"
-          - name: SPARK_SECURITY_CREDENTIALS
-            value: "false"
-          - name: HADOOP_SECURITY_AUTHENTICATION
-            value: "simple" 
-          - name: HADOOP_SECURITY_AUTHORIZATION
-            value: "false"
-          - name: SPARK_JAVA_OPTS
-            value: "-Djava.security.krb5.conf=/dev/null -Djavax.security.auth.useSubjectCredsOnly=false -Djavax.security.auth.login.config=/dev/null"
+          # - name: HADOOP_OPTIONAL_TOOLS
+          #   value: ""
+          # - name: SPARK_HADOOP_SECURITY_AUTH
+          #   value: "simple"
+          # - name: SPARK_SECURITY_CREDENTIALS
+          #   value: "false"
+          # - name: HADOOP_SECURITY_AUTHENTICATION
+          #   value: "simple" 
+          # - name: HADOOP_SECURITY_AUTHORIZATION
+          #   value: "false"
+          # - name: SPARK_JAVA_OPTS
+          #   value: "-Djava.security.krb5.conf=/dev/null -Djavax.security.auth.useSubjectCredsOnly=false -Djavax.security.auth.login.config=/dev/null"
           # - name: ARGO_LOG_LEVEL
           #   value: "debug"
         volumeMounts:
@@ -88,16 +90,73 @@ spec:
           - name: ivy-cache
             mountPath: /tmp/.ivy2
         workingDir: /workdir
-        securityContext:
-          runAsNonRoot: true
-          runAsUser: 1000
-          runAsGroup: 1000
-          fsGroup: 1000
-    volumes:
-        - name: workdir
-          emptyDir: {}
-        - name: ivy-cache
-          emptyDir: {}
+        # securityContext:
+        #   runAsNonRoot: true
+        #   runAsUser: 1000
+        #   runAsGroup: 1000
+        #   fsGroup: 1000
+      volumes:
+          - name: workdir
+            emptyDir: {}
+          - name: ivy-cache
+            emptyDir: {}
+
+    - name: load-warehouse-dummy
+      container:
+        image: ghcr.io/walthertimmer/python-data-engineering/python-scripts:latest
+        command: ["python", "/scripts/20_load_warehouse.py"]
+        imagePullPolicy: Always
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          # limits:
+          #   memory: "1Gi" 
+          #   cpu: "1"
+        env:
+          - name: S3_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: python-data-engineering
+                key: S3_ACCESS_KEY_ID
+                namespace: argo
+          - name: S3_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: python-data-engineering
+                key: S3_SECRET_ACCESS_KEY
+                namespace: argo
+          - name: S3_ENDPOINT_URL
+            valueFrom:
+              secretKeyRef:
+                name: python-data-engineering
+                key: S3_ENDPOINT_URL
+                namespace: argo
+          - name: S3_BUCKET
+            valueFrom:
+              secretKeyRef:
+                name: python-data-engineering
+                key: S3_BUCKET
+                namespace: argo
+          - name: SOURCE_FOLDER
+            value: "raw/dummy/"
+          - name: TARGET_FOLDER
+            value: "warehouse"
+          - name: FILE_FORMAT
+            value: "csv"
+          - name: SEPARATOR
+            value: ";"
+        volumeMounts:
+          - name: workdir
+            mountPath: /workdir
+          - name: ivy-cache
+            mountPath: /tmp/.ivy2
+        workingDir: /workdir
+      volumes:
+          - name: workdir
+            emptyDir: {}
+          - name: ivy-cache
+            emptyDir: {}
 
     # Workflow-level retry strategy
     retryStrategy:
@@ -106,5 +165,8 @@ spec:
     activeDeadlineSeconds: 3600  # Must complete within 1 hour
     ttlStrategy:
       secondsAfterCompletion: 86400  # Keep workflows for 1 day
+      successfulWorkflowTTL: "24h"  # Keep successful workflows for 1 day
+      failedWorkflowTTL: "24h"      # Keep failed workflows for 1 day
     podGC:
       strategy: OnWorkflowSuccess
+      minSuccessfulWorkflowsToRetain: 1  # Always keep at least 1 successful workflow

@@ -17,14 +17,15 @@ RUN mkdir -p /tmp/.ivy2 && \
     chmod 777 /tmp/.ivy2
 
 # Set Spark environment variables to disable kerberos security
-ENV HADOOP_OPTIONAL_TOOLS=""
-ENV SPARK_HADOOP_SECURITY_AUTH=simple
-ENV SPARK_SECURITY_CREDENTIALS=false
-ENV HADOOP_SECURITY_AUTHENTICATION=simple
-ENV HADOOP_SECURITY_AUTHORIZATION=false
-ENV HADOOP_OPTS="-Djava.security.krb5.conf=/dev/null -Djavax.security.auth.useSubjectCredsOnly=false -Djavax.security.auth.login.config=/dev/null"
-ENV SPARK_JAVA_OPTS="-Djava.security.krb5.conf=/dev/null -Djavax.security.auth.useSubjectCredsOnly=false -Djavax.security.auth.login.config=/dev/null"
-ENV JAVA_SECURITY_KRB5_CONF=/dev/null
+# ENV HADOOP_OPTIONAL_TOOLS=""
+# ENV SPARK_HADOOP_SECURITY_AUTH=simple
+# ENV SPARK_SECURITY_CREDENTIALS=false
+# ENV HADOOP_SECURITY_AUTHENTICATION=simple
+# ENV HADOOP_SECURITY_AUTHORIZATION=false
+# ENV HADOOP_OPTS="-Djava.security.krb5.conf=/dev/null -Djavax.security.auth.useSubjectCredsOnly=false -Djavax.security.auth.login.config=/dev/null"
+# ENV SPARK_JAVA_OPTS="-Djava.security.krb5.conf=/dev/null -Djavax.security.auth.useSubjectCredsOnly=false -Djavax.security.auth.login.config=/dev/null"
+# ENV JAVA_SECURITY_KRB5_CONF=/dev/null
+# ENV HADOOP_USER_NAME=root
 
 # Install Python dependencies
 COPY Docker/requirements.txt /tmp/requirements.txt

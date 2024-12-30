@@ -152,17 +152,17 @@ def init_spark_session():
         logging.info(f"Using Ivy directory: {ivy_dir}")
                 
         spark = (SparkSession.builder
-            .master("local[*]")  # Run in local mode
+            .master("local[*]")  # Run in local mode (single container)
             .appName("ETL")
             # Basic Delta Lake configs
             .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
             .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
             # Security
-            .config("spark.hadoop.security.authentication", "simple")
-            .config("spark.security.credentials.enabled", "false")
-            .config("spark.hadoop.security.authorization", "false")
-            .config("spark.driver.extraJavaOptions", "-Djava.security.krb5.conf=/dev/null -Djavax.security.auth.useSubjectCredsOnly=false")
-            .config("spark.executor.extraJavaOptions", "-Djava.security.krb5.conf=/dev/null -Djavax.security.auth.useSubjectCredsOnly=false")
+            # .config("spark.hadoop.security.authentication", "simple")
+            # .config("spark.security.credentials.enabled", "false")
+            # .config("spark.hadoop.security.authorization", "false")
+            # .config("spark.driver.extraJavaOptions", "-Djava.security.krb5.conf=/dev/null -Djavax.security.auth.useSubjectCredsOnly=false")
+            # .config("spark.executor.extraJavaOptions", "-Djava.security.krb5.conf=/dev/null -Djavax.security.auth.useSubjectCredsOnly=false")
             # Core packages only
             .config("spark.jars.packages",
                     "org.apache.hadoop:hadoop-aws:3.3.4," + # needed for S3
