@@ -100,22 +100,25 @@ def main() -> None:
         
         # Log script start
         logger.info("Starting process")
-        start_time = datetime.now()        
+        start_time = datetime.now()
+        
+        target_location = get_env_var("TARGET_LOCATION","raw/kvk-company/kvk-open-data-set-handelsregister-company.csv")
+        bucket_name = get_env_var("BUCKET_NAME","datahub")
         
         # Main logic
         logger.info("Downloading zip")
-        download_zip_file(url="https://static.kvk.nl/download/kvk-open-data-set-handelsregister.zip", 
+        download_zip_file(url="https://static.kvk.nl/download/kvk-open-data-set-handelsregister.zip",
                           file_path="kvk-open-data-set-handelsregister.zip")
 
         logger.info("Extracting zip")
-        extract_zip_file(zip_file="kvk-open-data-set-handelsregister.zip", 
+        extract_zip_file(zip_file="kvk-open-data-set-handelsregister.zip",
                          extract_dir="kvk-open-data-set-handelsregister")
 
         logger.info("Uploading to S3")
         save_to_s3(
             file_path="kvk-open-data-set-handelsregister/kvk-open-data-set-handelsregister.csv",
-            bucket_name="datahub",
-            object_name="bronze/kvk/kvk-open-data-set-handelsregister-company.csv"
+            bucket_name=bucket_name,
+            object_name=target_location
         )
 
         # Log completion

@@ -5,11 +5,11 @@ import os
 import logging
 from typing import Optional
 import subprocess
+import sys
 from dotenv import load_dotenv
 import boto3
 from botocore.exceptions import ClientError
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col
 from pyspark import SparkContext
 
 try:
@@ -77,6 +77,7 @@ def list_s3_objects(bucket_name, prefix):
 
 def check_java():
     """Check if Java is installed and configured"""
+    logging.info(f"Checking if Java is installed")
     try:
         subprocess.check_output(['java', '-version'], stderr=subprocess.STDOUT)
         return True
@@ -89,6 +90,7 @@ def init_spark_session():
     if not check_java():
         raise RuntimeError("Java is required to run Spark")
     
+    logging.info(f"Initializing Spark session")
     spark = (SparkSession.builder
         .master("local[*]")  # Run in local mode
         .appName("ETL")
@@ -113,19 +115,25 @@ def init_spark_session():
         .config("spark.hadoop.fs.s3a.path.style.access", "true")
         .config("spark.sql.parquet.datetimeRebaseModeInWrite", "LEGACY")
         .config("spark.sql.legacy.timeParserPolicy", "LEGACY")
+        .config("spark.sql.debug.maxToStringFields", 100)  # Default is 25
         # Security configurations
         .config("spark.driver.allowMultipleContexts", "true")
         .config("spark.security.credentials.hadoop.enabled", "false")
         .config("spark.driver.extraJavaOptions", "-Djava.security.manager=allow")
         .config("spark.executor.extraJavaOptions", "-Djava.security.manager=allow")
         .getOrCreate())
+    logging.info(f"Done with init Spark session")
     return spark
 
-def clean_table_name(table_name, bronze_prefix):
+def clean_table_name(table_name):
     """Make sure table name is valid"""
-    cleaned_table_name = ''.join(e for e in table_name if e.isalnum() or e == '_')
+    logging.info(f"Cleaning table name: {table_name}")
+    
+    # First get only the filename after the second last /
+    cleaned_table_name = table_name.split('/')[-2]
+    
+    cleaned_table_name = ''.join(e for e in cleaned_table_name if e.isalnum() or e == '_')
     cleaned_table_name = cleaned_table_name.replace('_csv', '') \
-                                           .replace(bronze_prefix, "") \
                                            .replace("/", "_") \
                                            .replace("-", "_") \
                                            .replace(".csv", "") \
@@ -135,9 +143,9 @@ def clean_table_name(table_name, bronze_prefix):
     logging.info(f"Cleaned table name: {table_name} to {cleaned_table_name}")
     return cleaned_table_name
 
-def create_table(spark, table_name, df,silver_prefix, bronze_prefix):
+def create_table(spark, table_name, df,target_folder, source_folder):
     """Create a table using PySpark"""
-    cleaned_table_name = clean_table_name(table_name,bronze_prefix)    
+    logging.info(f"Creating table: {table_name}")
     
     # Sanitize column names - replace any invalid characters
     # Clean up column names to only contain alphanumeric chars and underscores
@@ -152,71 +160,95 @@ def create_table(spark, table_name, df,silver_prefix, bronze_prefix):
             df = df.withColumn(field.name, df[field.name].cast("string"))
         
     # Define the table path in S3
-    silver_path = f"s3a://{get_env_var('S3_BUCKET')}/{silver_prefix}/{cleaned_table_name}"
+    target_path = f"s3a://{get_env_var('S3_BUCKET')}/{target_folder}/{table_name}"
     
     df.show(5)
     
     # Create table
     try:
-        logging.info(f"Creating table: {cleaned_table_name} at {silver_path}")
+        logging.info(f"Creating table: {table_name} at {target_path}")
         df.write \
-            .format("delta") \
-            .mode("overwrite") \
-            .save(silver_path)
+          .format("delta") \
+          .mode("overwrite") \
+          .save(target_path)
             
         # Create the table metadata if you want to query it using SQL
         spark.sql(f"""
-            CREATE TABLE IF NOT EXISTS {cleaned_table_name}
+            CREATE TABLE IF NOT EXISTS {table_name}
             USING DELTA
-            LOCATION '{silver_path}'
+            LOCATION '{target_path}'
         """)
+        logging.info(f"Done with creating table: {table_name} at {target_path}")
     except Exception as e:
-        logging.error(f"Failed to create table {cleaned_table_name}: {str(e)}")
+        logging.error(f"Failed to create table {table_name}: {str(e)}")
         raise
     return
 
-def process_and_create_tables(bucket_name, bronze_prefix, silver_prefix):
+def process_and_create_tables(
+    bucket_name,
+    source_folder,
+    target_folder,
+    file_format,
+    separator = ";"):
     """Process files from bronze folder and create tables in silver folder"""
     if not check_bucket_exists(bucket_name):
         logging.error(f"Bucket {bucket_name} does not exist. Exiting the process.")
         return
-    
-    files = list_s3_objects(bucket_name, bronze_prefix)
-    
+
+    files = list_s3_objects(bucket_name, source_folder)
+
     if not files:
-        logging.info("No files found in the bronze folder. Exiting the process.")
+        logging.error("No files found in the source folder. Exiting the process.")
         return
     
     # Initialize Spark session
     spark = init_spark_session()
     
-    # debug spark
+    # debug spark context
     spark_context = SparkContext._gateway.jvm.java.lang.System.getProperty("java.class.path")
     logging.info(f"Spark context: {spark_context}")
+            
+    # read and write entire folder using wildcard
+    file_path = f"s3a://{bucket_name}/{source_folder}*.{file_format}"
     
-    for file_key in files:
-        file_path = f"s3a://{bucket_name}/{file_key}"
-        
-        # Read CSV file into DataFrame
-        df = spark.read.csv(file_path, header=True, inferSchema=True, sep=";")
+    try:
+        # Read all CSV files into a single DataFrame
+        if file_format == "csv":
+            logging.info(f"Reading files from: {file_path}")
+            df = spark.read.csv(file_path,
+                            header=True,
+                            inferSchema=True,
+                            sep=separator)
+        else:
+            logging.error(f"Unsupported file format: {file_format}")
+            return
         df.printSchema()
+        
+        # Create table name from source folder
+        table_name = clean_table_name(source_folder)
+        
+        create_table(spark, table_name, df, target_folder, source_folder)
+        
+    except Exception as e:
+        logging.error(f"Error reading files from {file_path}: {str(e)}")
+        raise
     
-        # Create table name from file path
-        table_name = file_key.replace(bronze_prefix, "") \
-                             .replace("/", "_") \
-                             .replace("-", "_") \
-                             .replace(".csv", "")
-        logging.info(f"Corrected table name: {table_name}")
-        
-        create_table(spark, table_name, df, silver_prefix, bronze_prefix)
-        
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+
+    bucket_name = get_env_var("S3_BUCKET", "datahub") # S3 bucket name
     
-    bucket_name = get_env_var("S3_BUCKET")
-    bronze_prefix = "datahub/bronze/dummy/"
-    # bronze_prefix = "datahub/bronze/kvk/"
-    silver_prefix = "warehouse"
+    source_folder = get_env_var("SOURCE_FOLDER", "raw/dummy/") # folder that contains raw data, should end with /
+    target_folder = get_env_var("TARGET_FOLDER","warehouse") # main folder where delta table will be created
+    file_format = get_env_var("FILE_FORMAT","csv") # file format to read
+    separator = get_env_var("SEPARATOR",";") # separator for csv files
         
-    process_and_create_tables(bucket_name, bronze_prefix, silver_prefix)
-    
+    process_and_create_tables(
+        bucket_name=bucket_name,
+        source_folder=source_folder,
+        target_folder=target_folder,
+        file_format=file_format,
+        separator=separator
+        )
+
+    sys.exit(0)
