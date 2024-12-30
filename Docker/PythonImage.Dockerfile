@@ -16,6 +16,15 @@ ENV PATH=$JAVA_HOME/bin:$PATH
 RUN mkdir -p /tmp/.ivy2 && \
     chmod 777 /tmp/.ivy2
 
+# Set Spark environment variables to disable kerberos security
+ENV SPARK_HADOOP_SECURITY_AUTH=simple
+ENV SPARK_SECURITY_CREDENTIALS=false
+ENV HADOOP_SECURITY_AUTHENTICATION=simple
+ENV HADOOP_SECURITY_AUTHORIZATION=false
+
+RUN echo "auth required pam_permit.so" > /etc/pam.d/common-auth && \
+    echo "account required pam_permit.so" > /etc/pam.d/common-account
+
 # Install Python dependencies
 COPY Docker/requirements.txt /tmp/requirements.txt
 RUN pip install -r /tmp/requirements.txt
