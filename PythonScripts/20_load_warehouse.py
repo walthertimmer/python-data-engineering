@@ -1,23 +1,28 @@
-"""Transform bronze data to  delta table on S3 
+"""Transform raw data to warehouse delta table on S3 
+
+Params:
+    bucket_name # S3 bucket name
+    source_folder # folder that contains raw data, should end with /
+    target_folder # main folder where delta table will be created
+    file_format # file format to read
+    separator # separator for csv files
 """
 
 import os
 import logging
 from typing import Optional
-# import platform
-# import subprocess
 import sys
 from dotenv import load_dotenv
 import boto3
 from botocore.exceptions import ClientError
 from pyspark.sql import SparkSession
 from pyspark import SparkContext
+from delta.tables import DeltaTable
 
 try:
     load_dotenv()
 except Exception as e:
     print(f"Failed to load .env file: {str(e)}")
-    pass
 
 def get_env_var(var_name: str, default: Optional[str] = None) -> str:
     """Get environment variable with optional default value"""
@@ -157,12 +162,6 @@ def init_spark_session():
             # Basic Delta Lake configs
             .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
             .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
-            # Security
-            # .config("spark.hadoop.security.authentication", "simple")
-            # .config("spark.security.credentials.enabled", "false")
-            # .config("spark.hadoop.security.authorization", "false")
-            # .config("spark.driver.extraJavaOptions", "-Djava.security.krb5.conf=/dev/null -Djavax.security.auth.useSubjectCredsOnly=false")
-            # .config("spark.executor.extraJavaOptions", "-Djava.security.krb5.conf=/dev/null -Djavax.security.auth.useSubjectCredsOnly=false")
             # Core packages only
             .config("spark.jars.packages",
                     "org.apache.hadoop:hadoop-aws:3.3.4," + # needed for S3
@@ -180,8 +179,7 @@ def init_spark_session():
             .config("spark.sql.legacy.timeParserPolicy", "LEGACY")
             .config("spark.sql.debug.maxToStringFields", 100)  # Default is 25            
             .getOrCreate())
-        
-        spark.sparkContext.setLogLevel("INFO")
+        spark.sparkContext.setLogLevel("ERROR")
         logging.info(f"Done with init Spark session")
     except Exception as e:
         logging.error(f"Failed to initialize Spark session: {str(e)}")
@@ -207,6 +205,14 @@ def clean_table_name(table_name):
     logging.info(f"Cleaned table name: {table_name} to {cleaned_table_name}")
     return cleaned_table_name
 
+def table_exists(spark, path):
+    """Check if Delta table exists"""
+    try:
+        logging.info(f"Checking if table exists at {path}")
+        return DeltaTable.isDeltaTable(spark, path)
+    except Exception:
+        return False
+
 def create_table(spark, table_name, df,target_folder):
     """Create a table using PySpark"""
     logging.info(f"Creating table: {table_name}")
@@ -230,11 +236,18 @@ def create_table(spark, table_name, df,target_folder):
     
     # Create table
     try:
-        logging.info(f"Creating table: {table_name} at {target_path}")
-        df.write \
-          .format("delta") \
-          .mode("overwrite") \
-          .save(target_path)
+        if table_exists(spark, target_path):
+            logging.info(f"Appending to existing table: {table_name} at {target_path}")
+            df.write \
+                .format("delta") \
+                .mode("append") \
+                .save(target_path)
+        else:
+            logging.info(f"Creating table: {table_name} at {target_path}")
+            df.write \
+            .format("delta") \
+            .mode("overwrite") \
+            .save(target_path)
             
         # Create the table metadata if you want to query it using SQL
         spark.sql(f"""
@@ -253,7 +266,7 @@ def process_and_create_tables(
     source_folder,
     target_folder,
     file_format,
-    separator = ";"):
+    separator):
     """Process files from bronze folder and create tables in silver folder"""
     
     if not check_bucket_exists(bucket_name):
