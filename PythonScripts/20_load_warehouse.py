@@ -117,9 +117,16 @@ def init_spark_session():
             # Hadoop authentication configs - disable security for local development
             .config("spark.hadoop.hadoop.security.authentication", "simple")
             .config("spark.hadoop.hadoop.security.authorization", "false")
-            # User impersonation
-            .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
             .config("spark.hadoop.fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider")
+            .config("spark.hadoop.yarn.security.service.auth", "false")
+            .config("spark.kerberos.access.hadoopFileSystems", "")
+            .config("spark.hadoop.security.credential.provider.path", "")
+            .config("spark.driver.allowMultipleContexts", "true")
+            .config("spark.security.credentials.hadoop.enabled", "false")
+            .config("spark.driver.extraJavaOptions", "-Djava.security.manager=allow")
+            .config("spark.executor.extraJavaOptions", "-Djava.security.manager=allow")
+            # User impersonation
+            # .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
             # Add Ivy configs
             .config("spark.jars.ivy", ivy_dir)
             .config("spark.driver.extraJavaOptions", f"-Divy.home={ivy_dir}")
@@ -141,12 +148,7 @@ def init_spark_session():
             .config("spark.hadoop.fs.s3a.path.style.access", "true")
             .config("spark.sql.parquet.datetimeRebaseModeInWrite", "LEGACY")
             .config("spark.sql.legacy.timeParserPolicy", "LEGACY")
-            .config("spark.sql.debug.maxToStringFields", 100)  # Default is 25
-            # Security configurations
-            .config("spark.driver.allowMultipleContexts", "true")
-            .config("spark.security.credentials.hadoop.enabled", "false")
-            .config("spark.driver.extraJavaOptions", "-Djava.security.manager=allow")
-            .config("spark.executor.extraJavaOptions", "-Djava.security.manager=allow")
+            .config("spark.sql.debug.maxToStringFields", 100)  # Default is 25            
             .getOrCreate())
         logging.info(f"Done with init Spark session")
     except Exception as e:
