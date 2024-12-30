@@ -21,6 +21,8 @@ ENV SPARK_HADOOP_SECURITY_AUTH=simple
 ENV SPARK_SECURITY_CREDENTIALS=false
 ENV HADOOP_SECURITY_AUTHENTICATION=simple
 ENV HADOOP_SECURITY_AUTHORIZATION=false
+ENV HADOOP_OPTS="-Djava.security.krb5.conf=/dev/null -Djavax.security.auth.useSubjectCredsOnly=false"
+ENV SPARK_JAVA_OPTS="-Djava.security.krb5.conf=/dev/null -Djavax.security.auth.useSubjectCredsOnly=false"
 ENV JAVA_SECURITY_KRB5_CONF=/dev/null
 ENV HADOOP_SECURITY_AUTH_TO_LOCAL=RULE:[1:$1@$0](.*@EXAMPLE.COM)s/@.*//
 ENV SPARK_AUTH_TO_LOCAL=RULE:[1:$1@$0](.*@EXAMPLE.COM)s/@.*//
@@ -30,14 +32,28 @@ ENV KRB5CCNAME=/dev/null
 ENV HADOOP_HOME=/tmp/hadoop
 ENV HADOOP_CONF_DIR=/tmp/hadoop/conf
 
+# Update the core-site.xml configuration
 RUN mkdir -p /tmp/hadoop/conf && \
-    echo "<configuration><property><name>hadoop.security.authentication</name><value>simple</value></property></configuration>" > /tmp/hadoop/conf/core-site.xml && \
+    echo '<configuration> \
+        <property> \
+            <name>hadoop.security.authentication</name> \
+            <value>simple</value> \
+        </property> \
+        <property> \
+            <name>hadoop.security.authorization</name> \
+            <value>false</value> \
+        </property> \
+        <property> \
+            <name>hadoop.security.credential.provider.path</name> \
+            <value></value> \
+        </property> \
+    </configuration>' > /tmp/hadoop/conf/core-site.xml && \
     chmod -R 777 /tmp/hadoop
 
 RUN echo "auth required pam_permit.so" > /etc/pam.d/common-auth && \
     echo "account required pam_permit.so" > /etc/pam.d/common-account
 
-# Update the PAM configuration
+# Update the PAM configuration / Create empty krb5.conf
 RUN rm -f /etc/krb5.conf && \
     touch /etc/krb5.conf && \
     chmod 644 /etc/krb5.conf
