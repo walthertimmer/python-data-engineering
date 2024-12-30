@@ -12,6 +12,10 @@ RUN apt-get update && \
 ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 ENV PATH=$JAVA_HOME/bin:$PATH
 
+# Directory for ivy cache
+RUN mkdir -p /tmp/.ivy2 && \
+    chmod 777 /tmp/.ivy2
+
 # Install Python dependencies
 COPY Docker/requirements.txt /tmp/requirements.txt
 RUN pip install -r /tmp/requirements.txt

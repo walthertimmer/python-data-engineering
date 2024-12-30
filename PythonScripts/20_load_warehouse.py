@@ -85,44 +85,71 @@ def check_java():
         logging.error("Java is not installed or JAVA_HOME is not set properly")
         return False
 
+def get_ivy_dir():
+    """Determine appropriate Ivy directory based on environment"""
+    # Check if running in k8s
+    if os.path.exists('/var/run/secrets/kubernetes.io'):
+        default_ivy_dir = '/tmp/.ivy2'
+    else:
+        # Local development (Mac)
+        default_ivy_dir = os.path.expanduser('~/.ivy2')
+    
+    # Allow override via environment variable
+    ivy_dir = os.getenv('SPARK_IVY_DIR', default_ivy_dir)
+    
+    # Ensure directory exists
+    os.makedirs(ivy_dir, exist_ok=True)
+    return ivy_dir
+
 def init_spark_session():
     """Initialize Spark session with Delta support"""
     if not check_java():
         raise RuntimeError("Java is required to run Spark")
     
-    logging.info(f"Initializing Spark session")
-    spark = (SparkSession.builder
-        .master("local[*]")  # Run in local mode
-        .appName("ETL")
-        # Add Delta Lake configs
-        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-        .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
-        # Add S3A configs
-        .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
-        .config("spark.hadoop.fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider")
-        # Specify compatible versions
-        .config("spark.jars.packages",
-                "org.apache.hadoop:hadoop-aws:3.3.4," +
-                "io.delta:delta-spark_2.12:3.2.0," + # make sure to use delta-spark and not delta-core
-                "org.apache.spark:spark-sql_2.12:3.3.0," +
-                "org.apache.spark:spark-hive_2.12:3.3.0," +
-                "org.apache.spark:spark-hadoop-cloud_2.12:3.3.0")
-        # add S3 credentials
-        .config("spark.hadoop.fs.s3a.access.key", get_env_var("S3_ACCESS_KEY_ID"))
-        .config("spark.hadoop.fs.s3a.secret.key", get_env_var("S3_SECRET_ACCESS_KEY"))
-        .config("spark.hadoop.fs.s3a.endpoint", get_env_var("S3_ENDPOINT_URL"))
-        # other config
-        .config("spark.hadoop.fs.s3a.path.style.access", "true")
-        .config("spark.sql.parquet.datetimeRebaseModeInWrite", "LEGACY")
-        .config("spark.sql.legacy.timeParserPolicy", "LEGACY")
-        .config("spark.sql.debug.maxToStringFields", 100)  # Default is 25
-        # Security configurations
-        .config("spark.driver.allowMultipleContexts", "true")
-        .config("spark.security.credentials.hadoop.enabled", "false")
-        .config("spark.driver.extraJavaOptions", "-Djava.security.manager=allow")
-        .config("spark.executor.extraJavaOptions", "-Djava.security.manager=allow")
-        .getOrCreate())
-    logging.info(f"Done with init Spark session")
+    try:
+        logging.info(f"Initializing Spark session")
+        ivy_dir = get_ivy_dir()
+        logging.info(f"Using Ivy directory: {ivy_dir}")
+        
+        spark = (SparkSession.builder
+            .master("local[*]")  # Run in local mode
+            .appName("ETL")
+            # Add Ivy configs
+            .config("spark.jars.ivy", ivy_dir)
+            .config("spark.driver.extraJavaOptions", f"-Divy.home={ivy_dir}")
+            # Add Delta Lake configs
+            .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+            .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+            # Add S3A configs
+            .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+            .config("spark.hadoop.fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider")
+            # Specify compatible versions
+            .config("spark.jars.packages",
+                    "org.apache.hadoop:hadoop-aws:3.3.4," +
+                    "io.delta:delta-spark_2.12:3.2.0," + # make sure to use delta-spark and not delta-core
+                    "org.apache.spark:spark-sql_2.12:3.3.0," +
+                    "org.apache.spark:spark-hive_2.12:3.3.0," +
+                    "org.apache.spark:spark-hadoop-cloud_2.12:3.3.0")
+            # add S3 credentials
+            .config("spark.hadoop.fs.s3a.access.key", get_env_var("S3_ACCESS_KEY_ID"))
+            .config("spark.hadoop.fs.s3a.secret.key", get_env_var("S3_SECRET_ACCESS_KEY"))
+            .config("spark.hadoop.fs.s3a.endpoint", get_env_var("S3_ENDPOINT_URL"))
+            # other config
+            .config("spark.hadoop.fs.s3a.path.style.access", "true")
+            .config("spark.sql.parquet.datetimeRebaseModeInWrite", "LEGACY")
+            .config("spark.sql.legacy.timeParserPolicy", "LEGACY")
+            .config("spark.sql.debug.maxToStringFields", 100)  # Default is 25
+            # Security configurations
+            .config("spark.driver.allowMultipleContexts", "true")
+            .config("spark.security.credentials.hadoop.enabled", "false")
+            .config("spark.driver.extraJavaOptions", "-Djava.security.manager=allow")
+            .config("spark.executor.extraJavaOptions", "-Djava.security.manager=allow")
+            .getOrCreate())
+        logging.info(f"Done with init Spark session")
+    except Exception as e:
+        logging.error(f"Failed to initialize Spark session: {str(e)}")
+        raise
+    
     return spark
 
 def clean_table_name(table_name):
@@ -237,7 +264,6 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
     bucket_name = get_env_var("S3_BUCKET", "datahub") # S3 bucket name
-    
     source_folder = get_env_var("SOURCE_FOLDER", "raw/dummy/") # folder that contains raw data, should end with /
     target_folder = get_env_var("TARGET_FOLDER","warehouse") # main folder where delta table will be created
     file_format = get_env_var("FILE_FORMAT","csv") # file format to read

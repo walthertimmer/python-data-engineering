@@ -73,6 +73,8 @@ spec:
         volumeMounts:
           - name: workdir
             mountPath: /workdir
+          - name: ivy-cache
+            mountPath: /tmp/.ivy2
         workingDir: /workdir
         securityContext:
           runAsNonRoot: true
@@ -81,6 +83,8 @@ spec:
           fsGroup: 1000
     volumes:
         - name: workdir
+          emptyDir: {}
+        - name: ivy-cache
           emptyDir: {}
 
     # Workflow-level retry strategy
