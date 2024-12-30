@@ -111,22 +111,30 @@ def init_spark_session():
         ivy_dir = get_ivy_dir()
         logging.info(f"Using Ivy directory: {ivy_dir}")
         
+        # Set Java System properties
+        os.environ['HADOOP_USER_NAME'] = 'hadoop'
+        os.environ['HADOOP_HOME'] = '/tmp/hadoop'
+        
         spark = (SparkSession.builder
             .master("local[*]")  # Run in local mode
             .appName("ETL")
-            # Make sure Kerberos is not used
+            # Hadoop authentication configs
             .config("spark.hadoop.hadoop.security.authentication", "simple")
             .config("spark.hadoop.hadoop.security.authorization", "false")
-            .config("spark.hadoop.user.name", "spark")
+            .config("spark.hadoop.user.name", "hadoop")
+            # User impersonation
+            .config("spark.submit.deployMode", "client")
+            .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+            .config("spark.hadoop.fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider")
+            # System configs
+            .config("spark.driver.host", "localhost")
+            .config("spark.driver.bindAddress", "127.0.0.1")
             # Add Ivy configs
             .config("spark.jars.ivy", ivy_dir)
             .config("spark.driver.extraJavaOptions", f"-Divy.home={ivy_dir}")
             # Add Delta Lake configs
             .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
             .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
-            # Add S3A configs
-            .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
-            .config("spark.hadoop.fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider")
             # Specify compatible versions
             .config("spark.jars.packages",
                     "org.apache.hadoop:hadoop-aws:3.3.4," +
@@ -153,7 +161,7 @@ def init_spark_session():
     except Exception as e:
         logging.error(f"Failed to initialize Spark session: {str(e)}")
         raise
-    
+
     return spark
 
 def clean_table_name(table_name):
@@ -281,4 +289,5 @@ if __name__ == "__main__":
         separator=separator
         )
 
+    logging.info(f"Done with processing")
     sys.exit(0)
