@@ -114,6 +114,9 @@ def init_spark_session():
         spark = (SparkSession.builder
             .master("local[*]")  # Run in local mode
             .appName("ETL")
+            # Make sure Kerberos is not used
+            .config("spark.hadoop.hadoop.security.authentication", "simple")
+            .config("spark.hadoop.hadoop.security.authorization", "false")
             # Add Ivy configs
             .config("spark.jars.ivy", ivy_dir)
             .config("spark.driver.extraJavaOptions", f"-Divy.home={ivy_dir}")
