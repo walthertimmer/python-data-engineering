@@ -26,32 +26,36 @@ ENV SPARK_JAVA_OPTS="-Djava.security.krb5.conf=/dev/null -Djavax.security.auth.u
 ENV JAVA_SECURITY_KRB5_CONF=/dev/null
 ENV HADOOP_SECURITY_AUTH_TO_LOCAL=RULE:[1:$1@$0](.*@EXAMPLE.COM)s/@.*//
 ENV SPARK_AUTH_TO_LOCAL=RULE:[1:$1@$0](.*@EXAMPLE.COM)s/@.*//
-ENV SPARK_HADOOP_USER_NAME=none
-ENV SPARK_USER=none
+ENV SPARK_HADOOP_USER_NAME=root
+ENV HADOOP_USER_NAME=root
+ENV SPARK_USER=root
+ENV HADOOP_PROXY_USER=root
+ENV SPARK_PROXY_USER=root
 ENV KRB5CCNAME=/dev/null
 ENV HADOOP_HOME=/tmp/hadoop
 ENV HADOOP_CONF_DIR=/tmp/hadoop/conf
 
+RUN mkdir -p /tmp/spark && \
+    chmod -R 777 /tmp/spark && \
+    chown -R root:root /tmp/spark
+
 # Update the core-site.xml configuration
 RUN mkdir -p /tmp/hadoop/conf && \
     echo '<configuration> \
-        <property> \
-            <name>hadoop.security.authentication</name> \
-            <value>simple</value> \
-        </property> \
-        <property> \
-            <name>hadoop.security.authorization</name> \
-            <value>false</value> \
-        </property> \
-        <property> \
-            <name>hadoop.security.credential.provider.path</name> \
-            <value></value> \
-        </property> \
+    <property> \
+        <name>hadoop.security.authentication</name> \
+        <value>simple</value> \
+    </property> \
+    <property> \
+        <name>hadoop.proxyuser.root.hosts</name> \
+        <value>*</value> \
+    </property> \
+    <property> \
+        <name>hadoop.proxyuser.root.groups</name> \
+        <value>*</value> \
+    </property> \
     </configuration>' > /tmp/hadoop/conf/core-site.xml && \
     chmod -R 777 /tmp/hadoop
-
-RUN echo "auth required pam_permit.so" > /etc/pam.d/common-auth && \
-    echo "account required pam_permit.so" > /etc/pam.d/common-account
 
 # Update the PAM configuration / Create empty krb5.conf
 RUN rm -f /etc/krb5.conf && \
