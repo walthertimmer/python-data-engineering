@@ -4,7 +4,8 @@
 import os
 import logging
 from typing import Optional
-import subprocess
+# import platform
+# import subprocess
 import sys
 from dotenv import load_dotenv
 import boto3
@@ -74,16 +75,50 @@ def list_s3_objects(bucket_name, prefix):
         return []
     
     return [content['Key'] for content in response['Contents']]
-
-def check_java():
-    """Check if Java is installed and configured"""
-    logging.info(f"Checking if Java is installed")
-    try:
-        subprocess.check_output(['java', '-version'], stderr=subprocess.STDOUT)
+    
+def get_java_home():
+    """Get Java home directory for Linux and macOS"""
+    logging.basicConfig(level=logging.DEBUG)
+    
+    def validate_java_path(path):
+        """Helper to validate Java installation path"""
+        if not os.path.exists(path):
+            logging.debug(f"Path does not exist: {path}")
+            return False
+            
+        java_bin = os.path.join(path, "bin", "java")
+        if not os.path.exists(java_bin):
+            logging.debug(f"Java binary not found at: {java_bin}")
+            return False
+            
+        logging.debug(f"Valid Java installation found at: {path}")
         return True
-    except:
-        logging.error("Java is not installed or JAVA_HOME is not set properly")
-        return False
+
+    java_paths = [
+        '/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home',  # Homebrew Java 17, brew install openjdk@17
+        '/usr/lib/jvm/java-17-openjdk-amd64',
+        '/usr/lib/jvm/java-17-openjdk',
+        '/usr/lib/jvm/java-17-openjdk-arm64',
+        '/usr/local/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home',  # Homebrew path
+        '/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home',
+        '/Library/Java/JavaVirtualMachines/openjdk-17.jdk/Contents/Home',
+        '/usr/lib/jvm/java-17-openjdk-amd64',
+        '/usr/lib/jvm/java-17-openjdk',
+        '/usr/java/default',
+        '/usr/lib/jvm/default-java',
+    ]
+            
+    # check common paths
+    for path in java_paths:
+        if validate_java_path(path):
+            return path
+    
+    # Finally check JAVA_HOME env var
+    java_home = os.getenv('JAVA_HOME')
+    if java_home and validate_java_path(java_home):
+        return java_home
+    
+    raise RuntimeError("Could not find valid JAVA_HOME path")
 
 def get_ivy_dir():
     """Determine appropriate Ivy directory based on environment"""
@@ -103,60 +138,52 @@ def get_ivy_dir():
 
 def init_spark_session():
     """Initialize Spark session with Delta support"""
-    if not check_java():
-        raise RuntimeError("Java is required to run Spark")
+    # Set Java home with error handling
+    try:
+        os.environ['JAVA_HOME'] = get_java_home()
+        print(f"Using JAVA_HOME: {os.environ['JAVA_HOME']}")
+    except Exception as e:
+        logging.error(f"Failed to set JAVA_HOME: {str(e)}")
+        sys.exit(1)
     
     try:
         logging.info(f"Initializing Spark session")
+        
         ivy_dir = get_ivy_dir()
         logging.info(f"Using Ivy directory: {ivy_dir}")
                 
         spark = (SparkSession.builder
             .master("local[*]")  # Run in local mode
             .appName("ETL")
-            # Hadoop authentication configs - disable security for local development
-            .config("spark.hadoop.hadoop.security.authentication", "simple")
-            .config("spark.hadoop.hadoop.security.authorization", "false")
-            .config("spark.hadoop.fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider")
-            .config("spark.hadoop.yarn.security.service.auth", "false")
-            .config("spark.kerberos.access.hadoopFileSystems", "")
-            .config("spark.hadoop.security.credential.provider.path", "")
-            .config("spark.driver.allowMultipleContexts", "true")
-            .config("spark.security.credentials.hadoop.enabled", "false")
-            .config("spark.driver.extraJavaOptions", "-Djava.security.manager=allow")
-            .config("spark.executor.extraJavaOptions", "-Djava.security.manager=allow")
-            # User impersonation
-            # .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+            # Basic Delta Lake configs
+            .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+            .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+            # Core packages only
+            .config("spark.jars.packages",
+                    "org.apache.hadoop:hadoop-aws:3.3.4," + # needed for S3
+                    "io.delta:delta-spark_2.12:3.2.0," + # make sure to use delta-spark and not delta-core
+                    "org.apache.spark:spark-sql_2.12:3.3.0")
             # Add Ivy configs
             .config("spark.jars.ivy", ivy_dir)
             .config("spark.driver.extraJavaOptions", f"-Divy.home={ivy_dir}")
-            # Add Delta Lake configs
-            .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-            .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
-            # Specify compatible versions
-            .config("spark.jars.packages",
-                    "org.apache.hadoop:hadoop-aws:3.3.4," +
-                    "io.delta:delta-spark_2.12:3.2.0," + # make sure to use delta-spark and not delta-core
-                    "org.apache.spark:spark-sql_2.12:3.3.0," +
-                    "org.apache.spark:spark-hive_2.12:3.3.0," +
-                    "org.apache.spark:spark-hadoop-cloud_2.12:3.3.0")
             # add S3 credentials
             .config("spark.hadoop.fs.s3a.access.key", get_env_var("S3_ACCESS_KEY_ID"))
             .config("spark.hadoop.fs.s3a.secret.key", get_env_var("S3_SECRET_ACCESS_KEY"))
             .config("spark.hadoop.fs.s3a.endpoint", get_env_var("S3_ENDPOINT_URL"))
-            # other config
-            .config("spark.hadoop.fs.s3a.path.style.access", "true")
+            # Basic configs
             .config("spark.sql.parquet.datetimeRebaseModeInWrite", "LEGACY")
             .config("spark.sql.legacy.timeParserPolicy", "LEGACY")
             .config("spark.sql.debug.maxToStringFields", 100)  # Default is 25            
             .getOrCreate())
+        
+        spark.sparkContext.setLogLevel("INFO")
         logging.info(f"Done with init Spark session")
     except Exception as e:
         logging.error(f"Failed to initialize Spark session: {str(e)}")
         raise
 
     return spark
-
+            
 def clean_table_name(table_name):
     """Make sure table name is valid"""
     logging.info(f"Cleaning table name: {table_name}")
@@ -233,12 +260,12 @@ def process_and_create_tables(
         logging.error("No files found in the source folder. Exiting the process.")
         return
     
-    # Initialize Spark session
+    ### Initialize Spark session
     spark = init_spark_session()
     
-    # debug spark context
-    spark_context = SparkContext._gateway.jvm.java.lang.System.getProperty("java.class.path")
-    logging.info(f"Spark context: {spark_context}")
+    ### debug spark context
+    # spark_context = SparkContext._gateway.jvm.java.lang.System.getProperty("java.class.path")
+    # logging.info(f"Spark context: {spark_context}")
             
     # read and write entire folder using wildcard
     file_path = f"s3a://{bucket_name}/{source_folder}*.{file_format}"
