@@ -21,9 +21,26 @@ ENV SPARK_HADOOP_SECURITY_AUTH=simple
 ENV SPARK_SECURITY_CREDENTIALS=false
 ENV HADOOP_SECURITY_AUTHENTICATION=simple
 ENV HADOOP_SECURITY_AUTHORIZATION=false
+ENV JAVA_SECURITY_KRB5_CONF=/dev/null
+ENV HADOOP_SECURITY_AUTH_TO_LOCAL=RULE:[1:$1@$0](.*@EXAMPLE.COM)s/@.*//
+ENV SPARK_AUTH_TO_LOCAL=RULE:[1:$1@$0](.*@EXAMPLE.COM)s/@.*//
+ENV SPARK_HADOOP_USER_NAME=none
+ENV SPARK_USER=none
+ENV KRB5CCNAME=/dev/null
+ENV HADOOP_HOME=/tmp/hadoop
+ENV HADOOP_CONF_DIR=/tmp/hadoop/conf
+
+RUN mkdir -p /tmp/hadoop/conf && \
+    echo "<configuration><property><name>hadoop.security.authentication</name><value>simple</value></property></configuration>" > /tmp/hadoop/conf/core-site.xml && \
+    chmod -R 777 /tmp/hadoop
 
 RUN echo "auth required pam_permit.so" > /etc/pam.d/common-auth && \
     echo "account required pam_permit.so" > /etc/pam.d/common-account
+
+# Update the PAM configuration
+RUN rm -f /etc/krb5.conf && \
+    touch /etc/krb5.conf && \
+    chmod 644 /etc/krb5.conf
 
 # Install Python dependencies
 COPY Docker/requirements.txt /tmp/requirements.txt
