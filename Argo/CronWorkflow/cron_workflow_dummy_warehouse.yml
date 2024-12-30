@@ -68,6 +68,18 @@ spec:
             value: "csv"
           - name: SEPARATOR
             value: ";"
+          - name: HADOOP_OPTIONAL_TOOLS
+            value: ""
+          - name: SPARK_HADOOP_SECURITY_AUTH
+            value: "simple"
+          - name: SPARK_SECURITY_CREDENTIALS
+            value: "false"
+          - name: HADOOP_SECURITY_AUTHENTICATION
+            value: "simple" 
+          - name: HADOOP_SECURITY_AUTHORIZATION
+            value: "false"
+          - name: SPARK_JAVA_OPTS
+            value: "-Djava.security.krb5.conf=/dev/null -Djavax.security.auth.useSubjectCredsOnly=false -Djavax.security.auth.login.config=/dev/null"
           # - name: ARGO_LOG_LEVEL
           #   value: "debug"
         volumeMounts:

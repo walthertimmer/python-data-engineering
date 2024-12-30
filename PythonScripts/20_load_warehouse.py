@@ -160,6 +160,9 @@ def init_spark_session():
             # Security
             .config("spark.hadoop.security.authentication", "simple")
             .config("spark.security.credentials.enabled", "false")
+            .config("spark.hadoop.security.authorization", "false")
+            .config("spark.driver.extraJavaOptions", "-Djava.security.krb5.conf=/dev/null -Djavax.security.auth.useSubjectCredsOnly=false")
+            .config("spark.executor.extraJavaOptions", "-Djava.security.krb5.conf=/dev/null -Djavax.security.auth.useSubjectCredsOnly=false")
             # Core packages only
             .config("spark.jars.packages",
                     "org.apache.hadoop:hadoop-aws:3.3.4," + # needed for S3
