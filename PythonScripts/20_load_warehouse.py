@@ -310,8 +310,8 @@ def process_and_create_tables(
     except Exception as e:
         logging.error(f"Error reading files from {file_path}: {str(e)}")
         raise
-    
-if __name__ == "__main__":
+
+def main():
     logging.basicConfig(level=logging.INFO)
 
     bucket_name = get_env_var("S3_BUCKET", "datahub") # S3 bucket name
@@ -330,3 +330,6 @@ if __name__ == "__main__":
 
     logging.info(f"Done with processing")
     sys.exit(0)
+
+if __name__ == "__main__":
+    main()

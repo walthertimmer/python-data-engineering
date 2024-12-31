@@ -60,11 +60,9 @@ def list_delta_tables(bucket_name, prefix=''):
     except Exception as e:
         logging.error(f"Error listing objects: {str(e)}")
         raise
-    
     return sorted(list(tables))
 
-# Usage example:
-if __name__ == "__main__":
+def main() -> None:
     logging.basicConfig(level=logging.INFO)
     
     bucket_name = get_env_var("S3_BUCKET", "datahub") # S3 bucket name
@@ -74,3 +72,6 @@ if __name__ == "__main__":
     logging.info(f"Found {len(tables)} Delta tables")
     for table in tables:
         logging.info(f"Found Delta table: {table}")
+
+if __name__ == "__main__":
+    main()
