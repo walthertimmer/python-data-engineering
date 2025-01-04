@@ -36,3 +36,10 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}/python-scripts:latest
             ghcr.io/${{ github.repository }}/python-scripts:${{ github.sha }}
+      
+      - name: Delete old package versions
+        uses: actions/delete-package-versions@v4
+        with:
+          package-name: 'python-scripts'
+          package-type: 'container'
+          min-versions-to-keep: 2
