@@ -10,6 +10,7 @@ https://opendata.rdw.nl/profile/edit/developer_settings
 
 Get registered vehicle data from RDW (Dutch Vehicle Authority).
 Uses pagination to handle the large dataset efficiently.
+If there was a successful run only <1 month data will be fetched.
 """
 
 import logging
@@ -18,10 +19,12 @@ import sys
 from datetime import datetime
 from typing import Optional, List, Dict
 import json
+import time
 import requests
 from dotenv import load_dotenv
 import boto3
 from botocore.exceptions import ClientError
+from dateutil.relativedelta import relativedelta
 
 try:
     load_dotenv()
@@ -59,7 +62,9 @@ def get_s3_client():
 
 def get_last_run_timestamp(bucket_name, prefix):
     """Get timestamp of last successful run from S3"""
+    logger = logging.getLogger(__name__)
     try:
+        logger.info("Checking for last run timestamp")
         timestamp_file = f"{prefix}last_run_timestamp.txt"
         s3_client = get_s3_client()
         response = s3_client.get_object(Bucket=bucket_name, Key=timestamp_file)
@@ -67,29 +72,42 @@ def get_last_run_timestamp(bucket_name, prefix):
     except ClientError as e:
         if e.response['Error']['Code'] == 'NoSuchKey':
             # File doesn't exist yet - this is likely the first run
-            logging.info("No previous timestamp found - this appears to be the first run")
+            logger.info("No previous timestamp found - this appears to be the first run")
             return None
         else:
             # Some other error occurred
-            logging.error("Error reading timestamp file: %s", str(e))
+            logger.error("Error reading timestamp file: %s", str(e))
             raise
 
 def save_last_run_timestamp(bucket_name, prefix):
     """Save current timestamp to S3"""
+    logger = logging.getLogger(__name__)
     timestamp = datetime.now().strftime("%Y-%m-%d")
     timestamp_file = f"{prefix}last_run_timestamp.txt"
-
+    logger.info("Saving last run timestamp to S3: %s", timestamp)
     s3_client = get_s3_client()
     s3_client.put_object(
         Bucket=bucket_name,
         Key=timestamp_file,
         Body=timestamp.encode('utf-8')
     )
+    logger.info("Timestamp saved successfully")
+
+def get_date_filter(last_run: str) -> str:
+    """Create date filter with 1 month overlap to catch delayed entries"""
+    logger = logging.getLogger(__name__)
+    logger.info("Checking for last run timestamp")
+    if last_run:
+        # Convert last_run to date and subtract 1 month for overlap
+        last_run_date = datetime.strptime(last_run, "%Y-%m-%d")
+        overlap_date = (last_run_date - relativedelta(months=1)).strftime("%Y-%m-%d")
+        logger.info("Fetching data since %s", overlap_date)
+        return f"?$where=datum_eerste_toelating >= '{overlap_date}'"
+    return ""
 
 def fetch_rdw_data(base_url: str, offset: int, limit: int = 1000) -> List[Dict]:
-    """Fetch data from RDW API with pagination"""
-    # base_url = "https://opendata.rdw.nl/resource/m9d7-ebf2.json"
-
+    """Fetch data from RDW API with pagination and small sleep"""
+    logger = logging.getLogger(__name__)
     app_token = get_env_var("RDW_APP_TOKEN")
 
     headers = {
@@ -101,13 +119,17 @@ def fetch_rdw_data(base_url: str, offset: int, limit: int = 1000) -> List[Dict]:
         "$limit": limit
     }
 
-    response = requests.get(
-        base_url,
-        params=params,
-        headers=headers,
-        timeout=60)
-    response.raise_for_status()
-
+    try:
+        response = requests.get(
+            base_url,
+            params=params,
+            headers=headers,
+            timeout=60)
+        response.raise_for_status()
+        time.sleep(0.1)  # Add delay between requests to avoid overwhelming API
+    except requests.Timeout:
+        logger.error("Request timed out")
+        raise
     return response.json()
 
 def save_to_s3(data: str, bucket_name: str, object_name: str) -> None:
@@ -128,6 +150,36 @@ def save_to_s3(data: str, bucket_name: str, object_name: str) -> None:
         logger.error(f"Failed to upload to S3: {str(e)}")
         raise
 
+def save_checkpoint(bucket_name: str, prefix: str, offset: int) -> None:
+    """Save current processing offset to S3"""
+    logger = logging.getLogger(__name__)
+    logger.info("Saving checkpoint to S3")
+    checkpoint_file = f"{prefix}checkpoint.json"
+    checkpoint_data = {
+        'offset': offset,
+        'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    s3_client = get_s3_client()
+    s3_client.put_object(
+        Bucket=bucket_name,
+        Key=checkpoint_file,
+        Body=json.dumps(checkpoint_data)
+    )
+    logger.info("Saving checkpoint to S3 successful")
+
+def get_checkpoint(bucket_name: str, prefix: str) -> int:
+    """Get last saved offset from checkpoint"""
+    logger = logging.getLogger(__name__)
+    try:
+        checkpoint_file = f"{prefix}checkpoint.json"
+        s3_client = get_s3_client()
+        logger.info("Checking for checkpoint file")
+        response = s3_client.get_object(Bucket=bucket_name, Key=checkpoint_file)
+        checkpoint_data = json.loads(response['Body'].read().decode('utf-8'))
+        return checkpoint_data['offset']
+    except:
+        return 0
+
 def main() -> None:
     """Main function to extract RDW data and save to S3"""
     try:
@@ -146,6 +198,7 @@ def main() -> None:
 
         # Get last run timestamp
         last_run = get_last_run_timestamp(bucket_name, target_prefix)
+        date_filter = get_date_filter(last_run)
 
         # Initialize variables
         offset = 0
@@ -153,13 +206,16 @@ def main() -> None:
 
         # Modify your API call to include date filter
         base_url = "https://opendata.rdw.nl/resource/m9d7-ebf2.json"
-        if last_run:
-            # Add filter for datum_tenaamstelling greater than last run
-            query = f"?$where=datum_tenaamstelling > '{last_run}'"
-            url = base_url + query
+        if date_filter:
+            url = base_url + date_filter
         else:
             url = base_url
+        logger.info("API URL: %s", url)
 
+        # Get starting offset from checkpoint
+        offset = get_checkpoint(bucket_name, target_prefix)
+        logger.info("Starting from offset: %d", offset)
+        
         while True:
             try:
                 # Fetch batch of data
@@ -182,6 +238,9 @@ def main() -> None:
                         intermediate_file
                     )
                     all_data = []  # Clear memory
+                
+                # Save checkpoint after each batch
+                save_checkpoint(bucket_name, target_prefix, offset)
 
             except requests.exceptions.RequestException as e:
                 logger.error("API request failed at offset %d: %s", offset, str(e))
@@ -197,6 +256,16 @@ def main() -> None:
                 final_file
             )
             save_last_run_timestamp(bucket_name, target_prefix)
+            
+            # Cleanup checkpoint file after successful run
+            checkpoint_key = f"{target_prefix}checkpoint.json"
+            try:
+                logger.info("Cleaning up Checkpoint file")
+                s3_client = get_s3_client()
+                s3_client.delete_object(Bucket=bucket_name, Key=checkpoint_key)
+                logger.info("Checkpoint file cleaned up successfully")
+            except Exception as e:
+                logger.warning("Failed to cleanup checkpoint file: %s", str(e))
 
         # Log completion
         duration = datetime.now() - start_time

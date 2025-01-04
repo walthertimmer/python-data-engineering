@@ -23,7 +23,13 @@ Contains Python scripts to be used for ETL.
 
 ### Argo
 
-Contains workflows to be used by Argo to run said Python scripts. 
+Contains workflows to be used by Argo to run said Python scripts.
+
+Login to the GUI with a Bearer token:
+
+```bash
+kubectl -n argo get secret argo-workflows-server-token -o jsonpath='{.data.token}' | base64 --decode
+```
 
 - [Argo Workflows Releases](https://github.com/argoproj/argo-workflows/releases/)
 
@@ -54,6 +60,8 @@ Or all at once:
 
 Secrets should be put in Kubernetes secret to be used by the Docker container. Docker container itself and the repo should not contain secrets.  
 
+Possibility is to set it up with ansible-vault en create the secrets during a normal config run. 
+
 ```bash
 kubectl create secret generic python-data-engineering \
     --namespace argo \
@@ -81,8 +89,3 @@ Contains Dockerfile to create image containing the python scripts and needed dep
 ```bash
 docker build -t python-scripts -f Docker/PythonImage.Dockerfile .
 ```
-
-### To do
-
-- Schedule all workflows on argo as a step in the github workflow.  
-- Set/update the kubernetes secret (safely) using workflow.  

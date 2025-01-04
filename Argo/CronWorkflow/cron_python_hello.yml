@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: CronWorkflow
 metadata:
-  name: cron-workflow-python-hello # or use generateName
+  name: cron-python-hello # or use generateName
   namespace: argo
   labels:
     app: python-hello

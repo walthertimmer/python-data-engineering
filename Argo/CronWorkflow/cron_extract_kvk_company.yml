@@ -1,0 +1,90 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: cron-extract-kvk-company
+  namespace: argo
+  labels:
+    app: python-kvk-company-data
+    environment: production
+  annotations:
+    description: "Weekly extraction of KVK company data to S3"
+spec:
+  schedule: "0 0 * * 0"  # Runs every Sunday at midnight
+  concurrencyPolicy: Replace
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  workflowSpec:
+    serviceAccountName: argo-workflows-server
+    entrypoint: run-script
+    templates:
+    - name: run-script
+      dag:
+        tasks:
+        - name: extract-kvk-data
+          template: extract-kvk-data
+
+    - name: extract-kvk-data
+      container:
+        image: ghcr.io/walthertimmer/python-data-engineering/python-scripts:latest
+        command: ["python", "/scripts/10_extract_kvk_company_data.py"]
+        imagePullPolicy: Always
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          # limits:
+          #   memory: "1Gi" 
+          #   cpu: "1"
+        env:
+          - name: S3_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: python-data-engineering
+                key: S3_ACCESS_KEY_ID
+                namespace: argo
+          - name: S3_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: python-data-engineering
+                key: S3_SECRET_ACCESS_KEY
+                namespace: argo
+          - name: S3_ENDPOINT_URL
+            valueFrom:
+              secretKeyRef:
+                name: python-data-engineering
+                key: S3_ENDPOINT_URL
+                namespace: argo
+          - name: S3_BUCKET
+            valueFrom:
+              secretKeyRef:
+                name: python-data-engineering
+                key: S3_BUCKET
+                namespace: argo
+          - name: TARGET_LOCATION
+            value: "raw/kvk-company/kvk-open-data-set-handelsregister-company.csv"
+          - name: BUCKET_NAME
+            value: "datahub"
+          - name: ARGO_LOG_LEVEL
+            value: "debug"
+        volumeMounts:
+          - name: workdir
+            mountPath: /workdir
+        workingDir: /workdir
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+    volumes:
+        - name: workdir
+          emptyDir: {}
+
+    # Workflow-level retry strategy
+    retryStrategy:
+      limit: 1
+      retryPolicy: OnError
+    activeDeadlineSeconds: 3600  # Must complete within 1 hour
+    ttlStrategy:
+      secondsAfterCompletion: 86400  # Keep workflows for 1 day
+    podGC:
+      strategy: OnWorkflowSuccess
