@@ -71,7 +71,7 @@ def get_last_run_timestamp(bucket_name, prefix):
             return None
         else:
             # Some other error occurred
-            logging.error(f"Error reading timestamp file: {str(e)}")
+            logging.error("Error reading timestamp file: %s", str(e))
             raise
 
 def save_last_run_timestamp(bucket_name, prefix):
