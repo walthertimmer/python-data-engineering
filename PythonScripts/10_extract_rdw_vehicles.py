@@ -105,8 +105,12 @@ def get_date_filter(last_run: str) -> str:
         return f"?$where=datum_eerste_toelating >= '{overlap_date}'"
     return ""
 
-def fetch_rdw_data(base_url: str, offset: int, limit: int = 1000) -> List[Dict]:
-    """Fetch data from RDW API with pagination and small sleep"""
+def fetch_rdw_data(base_url: str, offset: int, limit: int = 1000, max_retries: int = 3) -> List[Dict]:
+    """Fetch data from RDW API with pagination and small sleep
+    
+    Returns:
+        Optional[List[Dict]]: List of records if successful, None if all retries failed
+    """
     logger = logging.getLogger(__name__)
     app_token = get_env_var("RDW_APP_TOKEN")
 
@@ -119,18 +123,36 @@ def fetch_rdw_data(base_url: str, offset: int, limit: int = 1000) -> List[Dict]:
         "$limit": limit
     }
 
-    try:
-        response = requests.get(
-            base_url,
-            params=params,
-            headers=headers,
-            timeout=60)
-        response.raise_for_status()
-        time.sleep(0.1)  # Add delay between requests to avoid overwhelming API
-    except requests.Timeout:
-        logger.error("Request timed out")
-        raise
-    return response.json()
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(
+                base_url,
+                params=params,
+                headers=headers,
+                timeout=60)
+            response.raise_for_status()
+            time.sleep(0.1)  # Add delay between requests to avoid overwhelming API
+            return response.json()
+        except (requests.Timeout, requests.RequestException) as e:
+            wait_time = 2 ** attempt  # Exponential backoff: 1, 2, 4 seconds
+            if attempt < max_retries - 1:  # Don't log warning on last attempt
+                logger.warning(
+                    "Request failed (attempt %d of %d), retrying in %d seconds. "
+                    "Error: %s",
+                    attempt + 1,
+                    max_retries,
+                    wait_time,
+                    str(e)
+                )
+                time.sleep(wait_time)
+            else:
+                logger.error(
+                    "Request failed after %d attempts. Error: %s",
+                    max_retries,
+                    str(e)
+                )
+                raise
+    return None  # Added explicit return None for when all retries fail
 
 def save_to_s3(data: str, bucket_name: str, object_name: str) -> None:
     """Save data to S3 bucket"""
@@ -153,7 +175,7 @@ def save_to_s3(data: str, bucket_name: str, object_name: str) -> None:
 def save_checkpoint(bucket_name: str, prefix: str, offset: int) -> None:
     """Save current processing offset to S3"""
     logger = logging.getLogger(__name__)
-    logger.info("Saving checkpoint to S3")
+    logger.info("Saving checkpoint to S3 at offset %d", offset)
     checkpoint_file = f"{prefix}checkpoint.json"
     checkpoint_data = {
         'offset': offset,
@@ -194,7 +216,7 @@ def main() -> None:
         # Get configuration
         bucket_name = get_env_var("S3_BUCKET", "datahub")
         target_prefix = get_env_var("TARGET_LOCATION", "raw/rdw-vehicles/")
-        batch_size = 1000
+        batch_size = 10000
 
         # Get last run timestamp
         last_run = get_last_run_timestamp(bucket_name, target_prefix)
@@ -239,8 +261,8 @@ def main() -> None:
                     )
                     all_data = []  # Clear memory
                 
-                # Save checkpoint after each batch
-                save_checkpoint(bucket_name, target_prefix, offset)
+                    # Save checkpoint only after successful S3 save
+                    save_checkpoint(bucket_name, target_prefix, offset)
 
             except requests.exceptions.RequestException as e:
                 logger.error("API request failed at offset %d: %s", offset, str(e))
