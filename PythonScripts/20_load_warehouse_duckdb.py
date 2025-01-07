@@ -105,17 +105,27 @@ def cleanup_temp_files() -> None:
             except Exception:
                 pass
 
+def get_file_type(file_path):
+    """Determine file type from path"""
+    if file_path.lower().endswith('.csv'):
+        return 'csv'
+    elif file_path.lower().endswith('.json'):
+        return 'json'
+    else:
+        raise ValueError(f"Unsupported file type for {file_path}")
+
 def process_files(con: duckdb.DuckDBPyConnection, 
                   source_path: str, 
                   target_path: str) -> None:
     """Process files from RAW to warehouse"""
     logger = logging.getLogger(__name__)
     
-    # List all CSV files
+    # List all files
     files_query = f"SELECT * FROM glob('{source_path}')"
     source_files = con.execute(files_query).fetchall()
     
     for file_tuple in source_files:
+        logger.info("Processing file: %s", file_tuple)
         source_file = file_tuple[0]
         base_name = Path(source_file).stem
         
@@ -130,20 +140,37 @@ def process_files(con: duckdb.DuckDBPyConnection,
             # Use Path for local files
             file_target = str(Path(target_path).parent / f"{base_name}.parquet")
     
+        # get type
+        file_type = get_file_type(source_file)
+        
         try:
             # Process in chunks
-            transform_query = f"""
-                COPY (
-                    SELECT DISTINCT * 
-                    FROM read_csv_auto('{source_file}')
-                ) TO '{file_target}'
-                    (
-                    FORMAT 'parquet',
-                    COMPRESSION 'ZSTD',
-                    OVERWRITE TRUE,
-                    ROW_GROUP_SIZE 100000
-                    )
-            """
+            if file_type == 'csv':
+                transform_query = f"""
+                    COPY (
+                        SELECT DISTINCT * 
+                        FROM read_csv_auto('{source_file}')
+                    ) TO '{file_target}'
+                        (
+                        FORMAT 'parquet',
+                        COMPRESSION 'ZSTD',
+                        OVERWRITE TRUE,
+                        ROW_GROUP_SIZE 100000
+                        )
+                """
+            elif file_type == 'json':
+                transform_query = f"""
+                    COPY (
+                        SELECT DISTINCT * 
+                        FROM read_json_auto('{source_file}')
+                    ) TO '{file_target}'
+                        (
+                        FORMAT 'parquet',
+                        COMPRESSION 'ZSTD',
+                        OVERWRITE TRUE,
+                        ROW_GROUP_SIZE 100000
+                        )
+                """
             logger.info(transform_query)
             
             # Check memory before processing
@@ -176,9 +203,9 @@ def main():
     
     # Get environment variables
     bucket_name = get_env_var("S3_BUCKET_NAME", "datahub")
-    source_folder = get_env_var("SOURCE_FOLDER", "raw/dummy/")
+    source_folder = get_env_var("SOURCE_FOLDER", "raw/dummy/*")
     target_folder = get_env_var("TARGET_FOLDER", "duckdb/dummy/")
-    source_path = f"s3://{bucket_name}/{source_folder}*.csv"
+    source_path = f"s3://{bucket_name}/{source_folder}"
     target_path = f"s3://{bucket_name}/{target_folder}"
     
     try:
