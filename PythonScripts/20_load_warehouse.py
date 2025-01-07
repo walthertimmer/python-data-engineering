@@ -159,22 +159,24 @@ def init_spark_session():
         spark = (SparkSession.builder
             .master("local[*]")  # Run in local mode (single container)
             .appName("ETL")
-            # Basic Delta Lake configs
+            ## Basic Delta Lake configs
+            # Registers Delta Lake's SQL extension with Spark
             .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+            # Sets Delta Lake as the default catalog implementation
             .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
-            # Core packages only
+            ## Core packages only
             .config("spark.jars.packages",
                     "org.apache.hadoop:hadoop-aws:3.3.4," + # needed for S3
                     "io.delta:delta-spark_2.12:3.2.0," + # make sure to use delta-spark and not delta-core
                     "org.apache.spark:spark-sql_2.12:3.3.0")
-            # Add Ivy configs
+            ## Add Ivy configs
             .config("spark.jars.ivy", ivy_dir)
             .config("spark.driver.extraJavaOptions", f"-Divy.home={ivy_dir}")
-            # add S3 credentials
+            ## add S3 credentials
             .config("spark.hadoop.fs.s3a.access.key", get_env_var("S3_ACCESS_KEY_ID"))
             .config("spark.hadoop.fs.s3a.secret.key", get_env_var("S3_SECRET_ACCESS_KEY"))
             .config("spark.hadoop.fs.s3a.endpoint", get_env_var("S3_ENDPOINT_URL"))
-            # Basic configs
+            ## Basic configs
             .config("spark.sql.parquet.datetimeRebaseModeInWrite", "LEGACY")
             .config("spark.sql.legacy.timeParserPolicy", "LEGACY")
             .config("spark.sql.debug.maxToStringFields", 100)  # Default is 25            
@@ -292,11 +294,14 @@ def process_and_create_tables(
     try:
         # Read all CSV files into a single DataFrame
         if file_format == "csv":
-            logging.info(f"Reading files from: {file_path}")
+            logging.info(f"Reading CSV files from: {file_path}")
             df = spark.read.csv(file_path,
                             header=True,
                             inferSchema=True,
                             sep=separator)
+        elif file_format == "json":
+            logging.info(f"Reading JSON files from: {file_path}")
+            df = spark.read.json(file_path)
         else:
             logging.error(f"Unsupported file format: {file_format}")
             return
@@ -328,7 +333,7 @@ def main():
         separator=separator
         )
 
-    logging.info(f"Done with processing")
+    logging.info("Done with processing")
     sys.exit(0)
 
 if __name__ == "__main__":

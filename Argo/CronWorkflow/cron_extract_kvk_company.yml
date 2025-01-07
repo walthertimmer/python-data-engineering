@@ -80,11 +80,14 @@ spec:
           emptyDir: {}
 
     # Workflow-level retry strategy
-    retryStrategy:
-      limit: 1
-      retryPolicy: OnError
+    # retryStrategy:
+    #   limit: 1
+    #   retryPolicy: OnError
     activeDeadlineSeconds: 3600  # Must complete within 1 hour
     ttlStrategy:
-      secondsAfterCompletion: 86400  # Keep workflows for 1 day
+      secondsAfterCompletion: 604800  # 7 days (7 * 24 * 60 * 60)
+      successfulWorkflowTTL: "168h"   # 7 days in hours
+      failedWorkflowTTL: "168h"       # 7 days in hours
     podGC:
       strategy: OnWorkflowSuccess
+      minSuccessfulWorkflowsToRetain: 1  # Keep pods from last 1 successful workflows
