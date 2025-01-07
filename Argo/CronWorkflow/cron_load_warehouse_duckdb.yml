@@ -125,10 +125,6 @@ spec:
             mountPath: /workdir
         workingDir: /workdir
 
-    volumes:
-    - name: workdir
-      emptyDir: {}
-
     ## the slack notification
     - name: slack-notification
       inputs:
@@ -160,7 +156,11 @@ spec:
             secretKeyRef:
               name: python-data-engineering
               key: SLACK_WEBHOOK_URL
-          
+      
+    volumes:
+    - name: workdir
+      emptyDir: {}
+
     ## Add onExit handler
     onExit: notify-status
 
