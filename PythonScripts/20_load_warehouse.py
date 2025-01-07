@@ -181,13 +181,13 @@ def init_spark_session():
             .config("spark.sql.legacy.timeParserPolicy", "LEGACY")
             .config("spark.sql.debug.maxToStringFields", 100)  # Default is 25  
             ## Memory configs
-            .config("spark.memory.fraction", "0.7")  # Fraction of heap for execution/storage
-            .config("spark.memory.storageFraction", "0.3")  # Fraction of heap for storage
-            .config("spark.sql.files.maxPartitionBytes", "128m")  # Smaller partition size
-            .config("spark.sql.shuffle.partitions", "10")  # Reduce shuffle partitions
-            .config("spark.memory.offHeap.enabled", "true")
-            .config("spark.memory.offHeap.size", "1g")
-            .config("spark.default.parallelism", "10")  # Control parallelism       
+            # .config("spark.memory.fraction", "0.7")  # Fraction of heap for execution/storage
+            # .config("spark.memory.storageFraction", "0.3")  # Fraction of heap for storage
+            # .config("spark.sql.files.maxPartitionBytes", "128m")  # Smaller partition size
+            # .config("spark.sql.shuffle.partitions", "10")  # Reduce shuffle partitions
+            # .config("spark.memory.offHeap.enabled", "true")
+            # .config("spark.memory.offHeap.size", "1g")
+            # .config("spark.default.parallelism", "10")  # Control parallelism       
             .getOrCreate())
         spark.sparkContext.setLogLevel("ERROR")
         logging.info("Done with init Spark session")
