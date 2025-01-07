@@ -276,11 +276,11 @@ spec:
         imagePullPolicy: Always
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "250m"
-          # limits:
-          #   memory: "1Gi" 
-          #   cpu: "1"
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "3Gi" # Set a limit below node capacity
+            cpu: "2000m"
         env:
           - name: S3_ACCESS_KEY_ID
             valueFrom:
