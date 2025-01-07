@@ -24,6 +24,14 @@ spec:
           template: load-warehouse-dummy
         - name: load-warehouse-rdw-defects
           template: load-warehouse-rdw-defects
+    - name: notify-status
+      steps:
+      - - name: send-slack
+          template: slack-notification
+          arguments:
+            parameters:
+            - name: status
+              value: "{{workflow.status}}"
 
     - name: load-warehouse-dummy
       container:
@@ -120,6 +128,41 @@ spec:
     volumes:
     - name: workdir
       emptyDir: {}
+
+    ## the slack notification
+    - name: slack-notification
+      inputs:
+          parameters:
+          - name: status
+      container:
+        image: curlimages/curl
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          MESSAGE=$(cat << EOF
+          *Workflow Details*
+          • Name: {{workflow.name}}
+          • Status: {{inputs.parameters.status}}
+          • Namespace: {{workflow.namespace}}
+          • ID: {{workflow.uid}}
+          • Start: {{workflow.creationTimestamp}}
+          • Duration: {{workflow.duration}}
+          • Node: {{pod.name}}
+          EOF
+          )
+          echo "Sending Slack notification: $MESSAGE"
+          curl -X POST -H 'Content-type: application/json' \
+          --data "{\"text\":\"$MESSAGE\"}" \
+          $(SLACK_WEBHOOK_URL) 2>&1
+        env:
+        - name: SLACK_WEBHOOK_URL
+          valueFrom:
+            secretKeyRef:
+              name: python-data-engineering
+              key: SLACK_WEBHOOK_URL
+          
+    ## Add onExit handler
+    onExit: notify-status
 
     activeDeadlineSeconds: 3600  # Must complete within 1 hour
     ttlStrategy:
