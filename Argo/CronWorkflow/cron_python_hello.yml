@@ -119,5 +119,6 @@ spec:
   ## delete all pods as soon as they complete
   podGC:
     strategy: OnWorkflowSuccess # OnWorkflowSuccess, OnWorkflowCompletion
+    minSuccessfulWorkflowsToRetain: 1
 
 
