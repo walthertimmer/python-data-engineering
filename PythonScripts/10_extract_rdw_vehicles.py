@@ -100,9 +100,11 @@ def get_date_filter(last_run: str) -> str:
     if last_run:
         # Convert last_run to date and subtract 1 month for overlap
         last_run_date = datetime.strptime(last_run, "%Y-%m-%d")
-        overlap_date = (last_run_date - relativedelta(months=1)).strftime("%Y-%m-%d")
-        logger.info("Fetching data since %s", overlap_date)
-        return f"?$where=datum_eerste_toelating >= '{overlap_date}'"
+        overlap_date = (last_run_date - relativedelta(months=1))
+        # Format date as YYYYMMDD without dashes for RDW API
+        formatted_date = overlap_date.strftime("%Y%m%d")
+        logger.info("Fetching data since %s", formatted_date)
+        return f"?$where=datum_eerste_toelating >= '{formatted_date}'"
     return ""
 
 def fetch_rdw_data(base_url: str, offset: int, limit: int = 1000, max_retries: int = 3) -> List[Dict]:
@@ -237,7 +239,7 @@ def main() -> None:
         # Get starting offset from checkpoint
         offset = get_checkpoint(bucket_name, target_prefix)
         logger.info("Starting from offset: %d", offset)
-        
+
         while True:
             try:
                 # Fetch batch of data
@@ -245,6 +247,8 @@ def main() -> None:
                 batch = fetch_rdw_data(url, offset, batch_size)
 
                 if not batch:  # No more data
+                    logger.info("No more records found from API. Total records processed: %d",
+                                offset)
                     break
 
                 all_data.extend(batch)
