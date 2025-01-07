@@ -21,16 +21,9 @@ COPY Docker/requirements.txt /tmp/requirements.txt
 RUN pip install -r /tmp/requirements.txt
 
 # Copy ETL scripts
-# COPY PythonScripts/ /scripts/
+COPY PythonScripts/ /scripts/
 
 WORKDIR /scripts
 
-# Add an entrypoint script that pulls latest code before running
-COPY Docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
 ### Sleep infinitely if debugging locally
 # ENTRYPOINT ["tail", "-f", "/dev/null"]
-
-# run the entrypoint script (get latest python scripts)
-ENTRYPOINT ["/entrypoint.sh"]
