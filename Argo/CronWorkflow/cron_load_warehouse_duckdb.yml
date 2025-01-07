@@ -1,0 +1,131 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: cron-load-warehouse-duckdb
+  namespace: argo
+  labels:
+    app: cron-load-warehouse-duckdb
+    environment: production
+  annotations:
+    description: "Progress raw to DuckDB warehouse on S3"
+spec:
+  schedule: "0 0 * * 0"  # Runs every Sunday at midnight
+  concurrencyPolicy: Replace
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  workflowSpec:
+    serviceAccountName: argo-workflows-server
+    entrypoint: run-script
+    templates:
+    - name: run-script
+      dag:
+        tasks:
+        - name: load-warehouse-dummy
+          template: load-warehouse-dummy
+        - name: load-warehouse-rdw-defects
+          template: load-warehouse-rdw-defects
+
+    - name: load-warehouse-dummy
+      container:
+        image: ghcr.io/walthertimmer/python-data-engineering/python-scripts:latest
+        command: ["python", "/scripts/20_load_warehouse_duckdb.py"]
+        imagePullPolicy: Always
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "3Gi"
+            cpu: "2000m"
+        env:
+          - name: S3_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: python-data-engineering
+                key: S3_ACCESS_KEY_ID
+                namespace: argo
+          - name: S3_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: python-data-engineering
+                key: S3_SECRET_ACCESS_KEY
+                namespace: argo
+          - name: S3_ENDPOINT_URL
+            valueFrom:
+              secretKeyRef:
+                name: python-data-engineering
+                key: S3_ENDPOINT_URL
+                namespace: argo
+          - name: S3_BUCKET
+            valueFrom:
+              secretKeyRef:
+                name: python-data-engineering
+                key: S3_BUCKET
+                namespace: argo
+          - name: SOURCE_FOLDER
+            value: "raw/dummy/"
+          - name: TARGET_FOLDER
+            value: "duckdb/dummy/"
+        volumeMounts:
+          - name: workdir
+            mountPath: /workdir
+        workingDir: /workdir
+
+    - name: load-warehouse-rdw-defects
+      container:
+        image: ghcr.io/walthertimmer/python-data-engineering/python-scripts:latest
+        command: ["python", "/scripts/20_load_warehouse_duckdb.py"]
+        imagePullPolicy: Always
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "3Gi"
+            cpu: "2000m"
+        env:
+          - name: S3_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: python-data-engineering
+                key: S3_ACCESS_KEY_ID
+                namespace: argo
+          - name: S3_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: python-data-engineering
+                key: S3_SECRET_ACCESS_KEY
+                namespace: argo
+          - name: S3_ENDPOINT_URL
+            valueFrom:
+              secretKeyRef:
+                name: python-data-engineering
+                key: S3_ENDPOINT_URL
+                namespace: argo
+          - name: S3_BUCKET
+            valueFrom:
+              secretKeyRef:
+                name: python-data-engineering
+                key: S3_BUCKET
+                namespace: argo
+          - name: SOURCE_FOLDER
+            value: "raw/rdw-defects/"
+          - name: TARGET_FOLDER
+            value: "duckdb/rdwdefects/"
+        volumeMounts:
+          - name: workdir
+            mountPath: /workdir
+        workingDir: /workdir
+
+    volumes:
+    - name: workdir
+      emptyDir: {}
+
+    activeDeadlineSeconds: 3600  # Must complete within 1 hour
+    ttlStrategy:
+      secondsAfterCompletion: 604800  # 7 days
+      successfulWorkflowTTL: "168h"   # 7 days in hours
+      failedWorkflowTTL: "168h"       # 7 days in hours
+    podGC:
+      strategy: OnWorkflowSuccess
+      minSuccessfulWorkflowsToRetain: 1
