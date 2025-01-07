@@ -5,9 +5,9 @@ on:
   push:
     branches:
       - master
-    paths:
+    paths: # only run on changes in the following directories
       - 'Docker/**'
-      - 'PythonScripts/**'
+      # - 'PythonScripts/**'
 
 permissions:
   contents: read
