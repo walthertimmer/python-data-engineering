@@ -26,9 +26,12 @@ COPY Docker/PythonImage_requirements.txt /tmp/requirements.txt
 RUN pip install -r /tmp/requirements.txt
 
 # Copy ETL scripts
-COPY PythonScripts/ /scripts/
+# COPY PythonScripts/ /scripts/
 
 WORKDIR /scripts
 
 ### Sleep infinitely if debugging locally
 # ENTRYPOINT ["tail", "-f", "/dev/null"]
+
+# Container will expect volume mount at /scripts
+VOLUME /scripts

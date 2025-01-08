@@ -7,8 +7,8 @@ on:
       - master
     paths: # only run on changes in the following directories
       - 'Docker/**'
-      - 'PythonScripts/**'
       - '.github/workflows/python-docker-build.yml'
+      # - 'PythonScripts/**'
 
 permissions:
   contents: read

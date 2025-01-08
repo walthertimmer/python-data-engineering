@@ -21,7 +21,10 @@ RUN pip install --no-cache-dir \
     psutil==6.1.1
 
 # Copy ETL scripts
-COPY PythonScripts/ /scripts/
+# COPY PythonScripts/ /scripts/
 
 # Create working directory
 WORKDIR /scripts
+
+# Container will expect volume mount at /scripts
+VOLUME /scripts
