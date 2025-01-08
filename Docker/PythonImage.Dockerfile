@@ -22,7 +22,7 @@ RUN mkdir -p /tmp/.ivy2 && \
     chmod 777 /tmp/.ivy2
 
 # Install Python dependencies
-COPY Docker/requirements.txt /tmp/requirements.txt
+COPY Docker/PythonImage_requirements.txt /tmp/requirements.txt
 RUN pip install -r /tmp/requirements.txt
 
 # Copy ETL scripts

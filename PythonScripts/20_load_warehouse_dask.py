@@ -14,12 +14,13 @@ import boto3
 import dask.dataframe as dd
 import dask.config
 from dask.diagnostics import ProgressBar
-from dask.distributed import Client, LocalCluster
+from dask.distributed import Client, LocalCluster, get_client
 from deltalake import DeltaTable, write_deltalake
 import pyarrow as pa
 from pyarrow import schema as pa_schema
 from pyarrow import field as pa_field
 # import multiprocessing
+import psutil
 
 try:
     load_dotenv()
@@ -61,17 +62,22 @@ def setup_dask() -> Client:
     logging.info("Setting up Dask client...")
     
     # n_workers = max(1, multiprocessing.cpu_count() - 1)
-    n_workers = 4
+    n_workers = 6
     
-    cluster = LocalCluster(n_workers=n_workers,
-                           threads_per_worker=4,
-                           memory_limit="2.5GB")
+    cluster = LocalCluster(
+        n_workers=n_workers,
+        threads_per_worker=1,
+        memory_limit="2GB",
+        memory_target_fraction=0.6,
+        memory_spill_fraction=0.8,
+        memory_pause_fraction=0.9
+        )
     client = Client(cluster)
     logger.info("Dask Dashboard URL: %s", client.dashboard_link)
     dask.config.set(
-        {"distributed.worker.memory.target": 0.8,  # Spill to disk at 80% memory usage
-        "distributed.worker.memory.spill": 0.9,  # Start spilling to disk
-        "distributed.worker.memory.pause": 0.95, # Pause execution at 95% memory usage
+        {"distributed.worker.memory.target": 0.6,  # Spill to disk at 80% memory usage
+        "distributed.worker.memory.spill": 0.8,  # Start spilling to disk
+        "distributed.worker.memory.pause": 0.90, # Pause execution at 95% memory usage
         "distributed.scheduler.allowed-failures": 3,  # Allow a few task retries
         }
     )
@@ -84,8 +90,9 @@ def close_dask(client, cluster):
     client.close()
     cluster.close()
 
-def read_data(source_path: str, 
-              file_format: str) -> dd.DataFrame:
+def read_data(source_path: str,
+              file_format: str,
+              block_size: str = "100MB") -> dd.DataFrame:
     """Read data from S3 using Dask"""
     logger = logging.getLogger(__name__)
     logger.info("Reading %s files from: %s", file_format, source_path)
@@ -103,21 +110,24 @@ def read_data(source_path: str,
         with ProgressBar():
             df = dd.read_csv(source_path, 
                             assume_missing=True,
-                            storage_options=storage_options)
+                            storage_options=storage_options,
+                            blocksize=block_size)
         elapsed = time.time() - start
         logger.info("Data loaded in %.2f seconds", elapsed)
     elif file_format == 'parquet':
         with ProgressBar():
             df = dd.read_parquet(source_path, 
                                 assume_missing=True,
-                                storage_options=storage_options)
+                                storage_options=storage_options,
+                                blocksize=block_size)
         elapsed = time.time() - start
         logger.info("Data loaded in %.2f seconds", elapsed)
     elif file_format == 'json':
         with ProgressBar():
             df = dd.read_json(source_path, 
                             assume_missing=True,
-                            storage_options=storage_options)
+                            storage_options=storage_options,
+                            blocksize=block_size)
         elapsed = time.time() - start
         logger.info("Data loaded in %.2f seconds", elapsed)
     else:
@@ -144,18 +154,49 @@ def clean_delta_table(target_path: str) -> None:
         logger.error("Failed to clean Delta table: %s", str(e))
         raise
 
+def get_dask_stats() -> None:
+    """Get Dask statistics"""
+    logger = logging.getLogger(__name__)
+    logger.info("Getting Dask statistics...")
+    
+    # Get worker diagnostics after processing
+    client = get_client()
+    workers = client.scheduler_info()['workers']
+    
+    # Calculate average CPU and memory usage
+    total_cpu = 0
+    total_memory = 0
+    num_workers = len(workers)
+    
+    logger.info("Individual Worker Statistics:")
+    for worker_id, stats in workers.items():
+        cpu = stats.get('cpu', 0)
+        memory = stats.get('memory', 0) / (1024 * 1024 * 1024)  # Convert to GB
+        logger.info("Worker %s - CPU Usage: %.2f%%, Memory Usage: %.2fGB", 
+                   worker_id, cpu, memory)
+        
+        total_cpu += cpu
+        total_memory += memory
+    
+    avg_cpu = total_cpu / num_workers if num_workers > 0 else 0
+    avg_memory = total_memory / num_workers if num_workers > 0 else 0
+    
+    logger.info("Overall Statistics - Avg CPU Usage: %.2f%%, Avg Memory Usage: %.2fGB", 
+                avg_cpu, avg_memory)
+    return None
+
 def write_to_delta(df: dd.DataFrame,
                    target_path: str,
                    client,
                    cluster,
-                   partition_size: str = "1000MB"
+                   partition_size: str = "256MB"
                    ) -> None:
     """Write Dask DataFrame to Delta format with disk spillover support
     
     Args:
         df: Dask DataFrame to write
         target_path: S3 path where to write the Delta table
-        partition_size: Size of each partition to process (default "100MB")
+        partition_size: Size of each partition to process
     """
     logger = logging.getLogger(__name__)
     temp_dir = "/tmp/dask-delta-tmp"
@@ -177,11 +218,13 @@ def write_to_delta(df: dd.DataFrame,
                 logger.info("Processing partition %d/%d", i+1, total_partitions)
                 
                 # Compute single partition
+                logger.info("Computing partition %d", i+1)
                 pandas_chunk = partition.compute()
                 
                 # Write mode: overwrite for first chunk, append for rest
                 write_mode = "overwrite" if i == 0 else "append"
                 
+                logger.info("Writing partition %d to Delta format", i+1)
                 write_deltalake(
                     target_path,
                     pandas_chunk,
@@ -197,8 +240,9 @@ def write_to_delta(df: dd.DataFrame,
             except Exception as e:
                 logger.error("Error processing partition %d: %s", i, str(e))
                 raise
-                                       
+            
         logger.info("Successfully wrote all data to Delta format")
+        get_dask_stats()
         
     except Exception as e:
         logger.error("Failed to write to Delta format: %s", str(e))
@@ -216,8 +260,8 @@ def main():
     
     try:
         # Get configuration
-        source_path = get_env_var("SOURCE_PATH", "raw/rdw-defects/*")
-        target_path = get_env_var("TARGET_PATH", "dask/rdwdefects/")
+        source_path = get_env_var("SOURCE_PATH", "raw/dummy/*")
+        target_path = get_env_var("TARGET_PATH", "dask/dummy/")
         file_format = get_env_var("FILE_FORMAT", "csv").lower()
         bucket_name = get_env_var("S3_BUCKET")
 

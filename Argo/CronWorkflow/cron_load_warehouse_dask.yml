@@ -29,7 +29,7 @@ spec:
 
     - name: load-warehouse-rdw-defects
       container:
-        image: ghcr.io/walthertimmer/python-data-engineering/python-scripts:latest
+        image: ghcr.io/walthertimmer/python-data-engineering/dask-scripts:latest
         command: ["python", "/scripts/20_load_warehouse_dask.py"]
         imagePullPolicy: Always
         resources:
@@ -77,7 +77,7 @@ spec:
 
     - name: load-warehouse-dummy
       container:
-        image: ghcr.io/walthertimmer/python-data-engineering/python-scripts:latest
+        image: ghcr.io/walthertimmer/python-data-engineering/dask-scripts:latest
         command: ["python", "/scripts/20_load_warehouse_dask.py"]
         imagePullPolicy: Always
         resources:
