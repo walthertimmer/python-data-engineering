@@ -118,7 +118,9 @@ spec:
     failedWorkflowTTL: "168h"       # 7 days in hours
   ## delete all pods as soon as they complete
   podGC:
-    strategy: OnWorkflowSuccess # OnWorkflowSuccess, OnWorkflowCompletion
+    strategy: OnWorkflowCompletion
+    labelSelector:
+      matchLabels:
+        workflows.argoproj.io/completed: "true"
     minSuccessfulWorkflowsToRetain: 1
-
-
+    minFailedWorkflowsToRetain: 1

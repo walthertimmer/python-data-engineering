@@ -87,5 +87,9 @@ spec:
       successfulWorkflowTTL: "168h"   # 7 days in hours
       failedWorkflowTTL: "168h"       # 7 days in hours
     podGC:
-      strategy: OnWorkflowSuccess
-      minSuccessfulWorkflowsToRetain: 1  # Keep pods from last 1 successful workflows
+      strategy: OnWorkflowCompletion
+      labelSelector:
+        matchLabels:
+          workflows.argoproj.io/completed: "true"
+      minSuccessfulWorkflowsToRetain: 1
+      minFailedWorkflowsToRetain: 1

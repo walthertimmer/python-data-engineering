@@ -203,8 +203,8 @@ def main():
     
     # Get environment variables
     bucket_name = get_env_var("S3_BUCKET_NAME", "datahub")
-    source_folder = get_env_var("SOURCE_FOLDER", "raw/dummy/*")
-    target_folder = get_env_var("TARGET_FOLDER", "duckdb/dummy/")
+    source_folder = get_env_var("SOURCE_FOLDER", "raw/rdw-defects/*")
+    target_folder = get_env_var("TARGET_FOLDER", "duckdb/rdwdefects/")
     source_path = f"s3://{bucket_name}/{source_folder}"
     target_path = f"s3://{bucket_name}/{target_folder}"
     

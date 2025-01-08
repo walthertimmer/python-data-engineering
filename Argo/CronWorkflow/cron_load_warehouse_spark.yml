@@ -1,15 +1,15 @@
 apiVersion: argoproj.io/v1alpha1
 kind: CronWorkflow
 metadata:
-  name: cron-load-warehouse
+  name: cron-load-warehouse-spark
   namespace: argo
   labels:
-    app: cron-load-warehouse
+    app: cron-load-warehouse-spark
     environment: production
   annotations:
     description: "Progress raw to delta warehouse on S3"
 spec:
-  schedule: "0 0 * * 0"  # Runs every Sunday at midnight
+  schedule: "0 0 * * 30"  # Runs every Sunday at midnight
   concurrencyPolicy: Replace
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
@@ -47,7 +47,7 @@ spec:
     - name: load-warehouse-kvk-company
       container:
         image: ghcr.io/walthertimmer/python-data-engineering/python-scripts:latest
-        command: ["python", "/scripts/20_load_warehouse.py"]
+        command: ["python", "/scripts/20_load_warehouse_spark.py"]
         imagePullPolicy: Always
         resources:
           requests:
@@ -106,7 +106,7 @@ spec:
     - name: load-warehouse-dummy
       container:
         image: ghcr.io/walthertimmer/python-data-engineering/python-scripts:latest
-        command: ["python", "/scripts/20_load_warehouse.py"]
+        command: ["python", "/scripts/20_load_warehouse_spark.py"]
         imagePullPolicy: Always
         resources:
           requests:
@@ -163,7 +163,7 @@ spec:
     - name: load-warehouse-rdw-defects
       container:
         image: ghcr.io/walthertimmer/python-data-engineering/python-scripts:latest
-        command: ["python", "/scripts/20_load_warehouse.py"]
+        command: ["python", "/scripts/20_load_warehouse_spark.py"]
         imagePullPolicy: Always
         resources:
           requests:
@@ -220,7 +220,7 @@ spec:
     - name: load-warehouse-rdw-defect-definitions
       container:
         image: ghcr.io/walthertimmer/python-data-engineering/python-scripts:latest
-        command: ["python", "/scripts/20_load_warehouse.py"]
+        command: ["python", "/scripts/20_load_warehouse_spark.py"]
         imagePullPolicy: Always
         resources:
           requests:
@@ -277,7 +277,7 @@ spec:
     - name: load-warehouse-rdw-vehicles
       container:
         image: ghcr.io/walthertimmer/python-data-engineering/python-scripts:latest
-        command: ["python", "/scripts/20_load_warehouse.py"]
+        command: ["python", "/scripts/20_load_warehouse_spark.py"]
         imagePullPolicy: Always
         resources:
           requests:
@@ -374,5 +374,9 @@ spec:
       successfulWorkflowTTL: "168h"   # 7 days in hours
       failedWorkflowTTL: "168h"       # 7 days in hours
     podGC:
-      strategy: OnWorkflowSuccess
-      minSuccessfulWorkflowsToRetain: 1  # Always keep at least 1 successful workflow
+      strategy: OnWorkflowCompletion
+      labelSelector:
+        matchLabels:
+          workflows.argoproj.io/completed: "true"
+      minSuccessfulWorkflowsToRetain: 1
+      minFailedWorkflowsToRetain: 1
