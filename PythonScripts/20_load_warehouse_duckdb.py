@@ -81,7 +81,7 @@ def setup_duckdb_connection() -> Any:
         
     # Initialize connection with memory settings
     con = duckdb.connect(":memory:")
-    # con.execute("PRAGMA memory_limit='4GB'") 
+    con.execute("PRAGMA memory_limit='8GB'")
     con.execute("PRAGMA temp_directory='/tmp/duckdb_temp'")
     con.execute("PRAGMA threads=4")
     
@@ -185,7 +185,7 @@ def process_files(con: duckdb.DuckDBPyConnection,
             logger.info("Processing done")
             
             # Force garbage collection after each file
-            con.execute("PRAGMA memory_limit='3GB'")
+            # con.execute("PRAGMA memory_limit='3GB'")
             con.execute("PRAGMA force_checkpoint")
         except Exception as e:
             con.execute("ROLLBACK;")

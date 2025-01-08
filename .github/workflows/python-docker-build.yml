@@ -47,6 +47,9 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}/python-scripts:latest
             ghcr.io/${{ github.repository }}/python-scripts:${{ github.sha }}
+          cache-from: type=gha # GitHub Actions cache
+          cache-to: type=gha,mode=max # GitHub Actions cache
+
 
       - name: Create and push manifest list
         run: |
