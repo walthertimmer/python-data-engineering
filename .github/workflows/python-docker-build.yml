@@ -36,19 +36,25 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: Docker/PythonImage.Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
+          provenance: false
           tags: |
             ghcr.io/${{ github.repository }}/python-scripts:latest
             ghcr.io/${{ github.repository }}/python-scripts:${{ github.sha }}
+
+      - name: Create and push manifest list
+        run: |
+          docker buildx imagetools create -t ghcr.io/${{ github.repository }}/python-scripts:latest \
+          ghcr.io/${{ github.repository }}/python-scripts:latest
       
       - name: Delete old package versions
         uses: actions/delete-package-versions@v4
         with:
           package-name: 'python-data-engineering/python-scripts'
           package-type: 'container'
-          min-versions-to-keep: 1
+          min-versions-to-keep: 5
