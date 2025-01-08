@@ -81,7 +81,7 @@ def setup_duckdb_connection() -> Any:
         
     # Initialize connection with memory settings
     con = duckdb.connect(":memory:")
-    con.execute("PRAGMA memory_limit='3GB'")  # Set memory limit
+    # con.execute("PRAGMA memory_limit='4GB'") 
     con.execute("PRAGMA temp_directory='/tmp/duckdb_temp'")
     con.execute("PRAGMA threads=4")
     
