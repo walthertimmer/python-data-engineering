@@ -9,7 +9,7 @@ metadata:
   annotations:
     description: "Progress raw to delta warehouse on S3"
 spec:
-  schedule: "0 0 * * 30"  # Runs every Sunday at midnight
+  schedule: "0 1 * * 0"  # Minute, Hour, Day of Month, Month, Day of Week
   concurrencyPolicy: Replace
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
