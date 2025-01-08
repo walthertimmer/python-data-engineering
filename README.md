@@ -89,3 +89,4 @@ Contains Dockerfile to create image containing the python scripts and needed dep
 ```bash
 docker build -t python-scripts -f Docker/PythonImage.Dockerfile .
 ```
+
