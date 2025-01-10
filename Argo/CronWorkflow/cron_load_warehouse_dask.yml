@@ -16,6 +16,12 @@ spec:
   workflowSpec:
     serviceAccountName: argo-workflows-server
     entrypoint: run-script
+    volumes:
+    - name: workdir
+      emptyDir: {}
+    - name: scripts-volume
+      emptyDir: {}
+
     templates:
     - name: run-script
       dag:
@@ -30,7 +36,7 @@ spec:
     - name: load-warehouse-rdw-defects
       container:
         image: ghcr.io/walthertimmer/python-data-engineering/dask-scripts:latest
-        command: ["python", "/scripts/20_load_warehouse_dask.py"]
+        command: ["python", "/workspace/PythonScripts/20_load_warehouse_dask.py"]
         imagePullPolicy: Always
         resources:
           requests:
@@ -73,12 +79,25 @@ spec:
         volumeMounts:
           - name: workdir
             mountPath: /workdir
+          - name: scripts-volume
+            mountPath: /workspace
         workingDir: /workdir
+      initContainers:
+      - name: git-clone
+        image: alpine/git:latest
+        command:
+          - sh
+          - -c
+        args:
+          - git clone https://github.com/walthertimmer/python-data-engineering.git /workspace
+        volumeMounts:
+          - name: scripts-volume
+            mountPath: /workspace
 
     - name: load-warehouse-dummy
       container:
         image: ghcr.io/walthertimmer/python-data-engineering/dask-scripts:latest
-        command: ["python", "/scripts/20_load_warehouse_dask.py"]
+        command: ["python", "/workspace/PythonScripts/20_load_warehouse_dask.py"]
         imagePullPolicy: Always
         resources:
           requests:
@@ -121,7 +140,20 @@ spec:
         volumeMounts:
           - name: workdir
             mountPath: /workdir
+          - name: scripts-volume
+            mountPath: /workspace
         workingDir: /workdir
+      initContainers:
+      - name: git-clone
+        image: alpine/git:latest
+        command:
+          - sh
+          - -c
+        args:
+          - git clone https://github.com/walthertimmer/python-data-engineering.git /workspace
+        volumeMounts:
+          - name: scripts-volume
+            mountPath: /workspace
 
     - name: notify-status
       steps:
@@ -162,10 +194,6 @@ spec:
             secretKeyRef:
               name: python-data-engineering
               key: SLACK_WEBHOOK_URL
-
-    volumes:
-    - name: workdir
-      emptyDir: {}
 
     onExit: notify-status
 

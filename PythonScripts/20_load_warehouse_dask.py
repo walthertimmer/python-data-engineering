@@ -14,13 +14,11 @@ import boto3
 import dask.dataframe as dd
 import dask.config
 from dask.diagnostics import ProgressBar
-from dask.distributed import Client, LocalCluster, get_client
+from dask.distributed import Client, LocalCluster, performance_report
 from deltalake import DeltaTable, write_deltalake
-import pyarrow as pa
-from pyarrow import schema as pa_schema
-from pyarrow import field as pa_field
-# import multiprocessing
-import psutil
+# import pyarrow as pa
+# from pyarrow import schema as pa_schema
+# from pyarrow import field as pa_field
 
 try:
     load_dotenv()
@@ -62,15 +60,16 @@ def setup_dask() -> Client:
     logging.info("Setting up Dask client...")
     
     # n_workers = max(1, multiprocessing.cpu_count() - 1)
-    n_workers = 6
+    n_workers = 4
     
+    # Create a 4-process cluster (running locally). Note only one thread
+    # per-worker: because polling is per-process, you can't run multiple
+    # threads per worker, otherwise you'll get results that combine memory
+    # usage of multiple tasks.
     cluster = LocalCluster(
         n_workers=n_workers,
         threads_per_worker=1,
         memory_limit="2GB",
-        memory_target_fraction=0.6,
-        memory_spill_fraction=0.8,
-        memory_pause_fraction=0.9
         )
     client = Client(cluster)
     logger.info("Dask Dashboard URL: %s", client.dashboard_link)
@@ -81,6 +80,9 @@ def setup_dask() -> Client:
         "distributed.scheduler.allowed-failures": 3,  # Allow a few task retries
         }
     )
+    dask_config = dask.config.config
+    logger.info("Dask configuration: %s", dask_config)
+    
     return client, cluster
 
 def close_dask(client, cluster):
@@ -154,37 +156,6 @@ def clean_delta_table(target_path: str) -> None:
         logger.error("Failed to clean Delta table: %s", str(e))
         raise
 
-def get_dask_stats() -> None:
-    """Get Dask statistics"""
-    logger = logging.getLogger(__name__)
-    logger.info("Getting Dask statistics...")
-    
-    # Get worker diagnostics after processing
-    client = get_client()
-    workers = client.scheduler_info()['workers']
-    
-    # Calculate average CPU and memory usage
-    total_cpu = 0
-    total_memory = 0
-    num_workers = len(workers)
-    
-    logger.info("Individual Worker Statistics:")
-    for worker_id, stats in workers.items():
-        cpu = stats.get('cpu', 0)
-        memory = stats.get('memory', 0) / (1024 * 1024 * 1024)  # Convert to GB
-        logger.info("Worker %s - CPU Usage: %.2f%%, Memory Usage: %.2fGB", 
-                   worker_id, cpu, memory)
-        
-        total_cpu += cpu
-        total_memory += memory
-    
-    avg_cpu = total_cpu / num_workers if num_workers > 0 else 0
-    avg_memory = total_memory / num_workers if num_workers > 0 else 0
-    
-    logger.info("Overall Statistics - Avg CPU Usage: %.2f%%, Avg Memory Usage: %.2fGB", 
-                avg_cpu, avg_memory)
-    return None
-
 def write_to_delta(df: dd.DataFrame,
                    target_path: str,
                    client,
@@ -242,7 +213,6 @@ def write_to_delta(df: dd.DataFrame,
                 raise
             
         logger.info("Successfully wrote all data to Delta format")
-        get_dask_stats()
         
     except Exception as e:
         logger.error("Failed to write to Delta format: %s", str(e))
@@ -252,11 +222,44 @@ def write_to_delta(df: dd.DataFrame,
         # Cleanup temporary files
         if os.path.exists(temp_dir):
             shutil.rmtree(temp_dir)
-        close_dask(client, cluster)
-    
+
+def get_worker_memory_stats(client):
+    """Get memory statistics from all workers"""
+    try:
+        workers = client.scheduler_info()['workers']
+        if not workers:
+            logging.warning("No workers found in cluster")
+            return 0, 0
+        memory_usage = []
+        for worker in workers.values():
+            try:
+                # Try different memory attributes
+                if 'memory' in worker:
+                    mem = worker['memory']
+                elif 'memory_info' in worker:
+                    mem = worker['memory_info']['used']
+                elif 'metrics' in worker and 'memory' in worker['metrics']:
+                    mem = worker['metrics']['memory']
+                else:
+                    mem = worker.get('memory_limit', 0)  # fallback to memory limit
+                memory_usage.append(mem)
+            except Exception as we:
+                logging.warning(f"Failed to get memory for worker: {str(we)}")
+                memory_usage.append(0)
+                
+        if not memory_usage:
+            return 0, 0
+            
+        return max(memory_usage) / 1e9, sum(memory_usage) / 1e9
+    except Exception as e:
+        logging.warning(f"Failed to get memory stats: {str(e)}, type: {type(e)}")
+        return 0, 0
+
 def main():
     """Main function to execute the script"""
     setup_logging()
+    client = None
+    cluster = None
     
     try:
         # Get configuration
@@ -270,22 +273,47 @@ def main():
         
         client, cluster = setup_dask()
         
-        # Read data
-        df = read_data(source_path, file_format)
+        # Initial memory usage
+        initial_max_mem, initial_total_mem = get_worker_memory_stats(client)
+        logging.info("Initial memory usage - Max: %.2f GB, Total: %.2f GB", initial_max_mem, initial_total_mem)
         
-        # Write to Delta format
-        write_to_delta(df=df,
-                       target_path=target_path,
-                       client=client,
-                       cluster=cluster)
-        
+        # Add performance monitoring
+        with performance_report(filename="dask-report.html"):
+            # Read data
+            df = read_data(source_path, file_format)
+            
+            # Write to Delta format
+            write_to_delta(df=df,
+                        target_path=target_path,
+                        client=client,
+                        cluster=cluster)
+            
+            # Final memory usage
+            final_max_mem, final_total_mem = get_worker_memory_stats(client)
+            logging.info("Final memory usage - Max: %.2f GB, Total: %.2f GB", final_max_mem, final_total_mem)
+            logging.info("Memory increase - Max: %.2f GB", (final_max_mem - initial_max_mem))
+            
+            # Log task completion statistics
+            scheduler_info = client.scheduler_info()
+            logging.info("Total tasks processed: %d", scheduler_info.get('total', 0))
+            logging.info("Tasks completed: %d", scheduler_info.get('completed', 0))
+                
         close_dask(client, cluster)
-        
+                
         logging.info("Process completed successfully.")
         
     except Exception as e:
         logging.error("Error: %s", str(e))
         sys.exit(1)
-        
+    finally:
+        if client is not None:
+            try:
+                client.close()
+                if cluster is not None:
+                    cluster.close()
+                logging.info("Dask client and cluster closed successfully")
+            except Exception as e:
+                logging.error("Error closing Dask client/cluster: %s", str(e))
+    
 if __name__ == "__main__":
     main()

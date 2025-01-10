@@ -164,3 +164,4 @@ cython_debug/
 .work-folder-info
 kvk-open-data-set-handelsregister/kvk-open-data-set-handelsregister.csv
 kvk-open-data-set-handelsregister.zip
+dask-report.html

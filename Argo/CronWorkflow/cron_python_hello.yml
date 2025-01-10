@@ -16,12 +16,19 @@ spec:
   workflowSpec:
     serviceAccountName: argo-workflows-server
     entrypoint: run-script
+    volumes:
+    - name: workdir
+      emptyDir: {}
+    - name: scripts-volume
+      emptyDir: {}
+
     templates:
     - name: run-script
       dag:
         tasks:
         - name: hello-task
           template: run-script-hello
+          dependencies: []
         - name: dynamic-hello-task
           template: run-script-hello-dynamic
           dependencies: ["hello-task"]
@@ -38,7 +45,7 @@ spec:
     - name: run-script-hello
       container:
         image: ghcr.io/walthertimmer/python-data-engineering/python-scripts:latest
-        command: ["python", "/scripts/hello.py"]
+        command: ["python", "/workspace/PythonScripts/hello.py"]
         imagePullPolicy: Always
         resources:
           requests:
@@ -47,11 +54,28 @@ spec:
           limits:
             memory: "128Mi"
             cpu: "500m"
+        volumeMounts:
+          - name: workdir
+            mountPath: /workdir
+          - name: scripts-volume
+            mountPath: /workspace
+        workingDir: /workdir
+      initContainers:
+      - name: git-clone
+        image: alpine/git:latest
+        command:
+          - sh
+          - -c
+        args:
+          - git clone https://github.com/walthertimmer/python-data-engineering.git /workspace
+        volumeMounts:
+          - name: scripts-volume
+            mountPath: /workspace
 
     - name: run-script-hello-dynamic
       container:
         image: ghcr.io/walthertimmer/python-data-engineering/python-scripts:latest
-        command: ["python", "/scripts/hello_dynamic.py"]
+        command: ["python", "/workspace/PythonScripts/hello_dynamic.py"]
         imagePullPolicy: Always
         resources:
           requests:
@@ -69,6 +93,23 @@ spec:
         securityContext:
           runAsNonRoot: true
           runAsUser: 1000
+        volumeMounts:
+          - name: workdir
+            mountPath: /workdir
+          - name: scripts-volume
+            mountPath: /workspace
+        workingDir: /workdir
+      initContainers:
+      - name: git-clone
+        image: alpine/git:latest
+        command:
+          - sh
+          - -c
+        args:
+          - git clone https://github.com/walthertimmer/python-data-engineering.git /workspace
+        volumeMounts:
+          - name: scripts-volume
+            mountPath: /workspace
 
     ## the slack notification
     - name: slack-notification
