@@ -61,19 +61,19 @@ jobs:
           platforms: linux/amd64,linux/arm64
           provenance: false
           tags: |
-            ghcr.io/${{ github.repository }}/python-scripts:latest
-            ghcr.io/${{ github.repository }}/python-scripts:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/python:latest
+            ghcr.io/${{ github.repository }}/python:${{ github.sha }}
 
       - name: Create and push manifest list for python
         run: |
-          docker buildx imagetools create -t ghcr.io/${{ github.repository }}/python-scripts:latest \
-          ghcr.io/${{ github.repository }}/python-scripts:latest
+          docker buildx imagetools create -t ghcr.io/${{ github.repository }}/python:latest \
+          ghcr.io/${{ github.repository }}/python:latest
       
       # Cleanups
       - name: Delete old Python package versions
         uses: actions/delete-package-versions@v4
         with:
-          package-name: 'python-data-engineering/python-scripts'
+          package-name: 'python-data-engineering/python'
           package-type: 'container'
           min-versions-to-keep: 5
 

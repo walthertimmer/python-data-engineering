@@ -1,13 +1,13 @@
-# .github/workflows/python-docker-build.yml
-name: Docker Build DaskImage and Push
+# .github/workflows/polars-docker-build.yml
+name: Docker Build PolarsImage and Push
 
 on:
   push:
     branches:
       - master
     paths: # only run on changes in the following directories
-      - 'Docker/DaskImage**'
-      - '.github/workflows/dask-docker-build.yml'
+      - 'Docker/PolarsImage**'
+      - '.github/workflows/polars-docker-build.yml'
 
 permissions:
   contents: read
@@ -35,27 +35,27 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Dask image
+      - name: Build and push Polars image
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: Docker/DaskImage.Dockerfile
+          file: Docker/PolarsImage.Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
           provenance: false
           tags: |
-            ghcr.io/${{ github.repository }}/dask:latest
-            ghcr.io/${{ github.repository }}/dask:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/polars:latest
+            ghcr.io/${{ github.repository }}/polars:${{ github.sha }}
 
-      - name: Create manifest lists for dask
+      - name: Create manifest lists for polars
         run: |
-          docker buildx imagetools create -t ghcr.io/${{ github.repository }}/dask:latest \
-          ghcr.io/${{ github.repository }}/dask:latest
+          docker buildx imagetools create -t ghcr.io/${{ github.repository }}/polars:latest \
+          ghcr.io/${{ github.repository }}/polars:latest
       
       # Cleanups
-      - name: Delete old Dask image versions
+      - name: Delete old polars image versions
         uses: actions/delete-package-versions@v4
         with:
-          package-name: 'python-data-engineering/dask'
+          package-name: 'python-data-engineering/polars'
           package-type: 'container'
-          min-versions-to-keep: 5
+          min-versions-to-keep: 3

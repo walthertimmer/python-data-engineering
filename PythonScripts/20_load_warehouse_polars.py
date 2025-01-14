@@ -14,10 +14,9 @@ Configuration is done via environment variables:
 
 import os
 import logging
-# from pathlib import Path
 from typing import Optional
 import polars as pl
-from deltalake import DeltaTable, write_deltalake
+from deltalake import write_deltalake
 import boto3
 from dotenv import load_dotenv
 
@@ -63,8 +62,8 @@ def list_s3_files(bucket: str, prefix: str) -> list:
 def read_data(file_path: str, file_format: str, separator: str = ",") -> pl.DataFrame:
     """Read data from S3 into Polars DataFrame"""
     logger = logging.getLogger(__name__)
-    logger.info(f"Reading {file_format} file: {file_path}")
-    
+    logger.info("Reading %s file: %s", file_format, file_path)
+
     storage_options = {
         "key": get_env_var("S3_ACCESS_KEY_ID"),
         "secret": get_env_var("S3_SECRET_ACCESS_KEY"),
@@ -94,13 +93,13 @@ def read_data(file_path: str, file_format: str, separator: str = ",") -> pl.Data
         return df
         
     except Exception as e:
-        logger.error(f"Failed to read file {file_path}: {str(e)}")
+        logger.error("Failed to read file %s: %s", file_path, str(e))
         raise
 
 def write_to_delta(df: pl.DataFrame, table_path: str) -> None:
     """Write Polars DataFrame to Delta format"""
     logger = logging.getLogger(__name__)
-    logger.info(f"Writing to Delta table: {table_path}")
+    logger.info("Writing to Delta table: %s", table_path)
     
     try:
         # Convert Polars DataFrame to Arrow Table
@@ -120,22 +119,8 @@ def write_to_delta(df: pl.DataFrame, table_path: str) -> None:
         logger.info("Successfully wrote to Delta format")
         
     except Exception as e:
-        logger.error(f"Failed to write Delta table: {str(e)}")
+        logger.error("Failed to write Delta table: %s", str(e))
         raise
-
-def clean_table_name(table_name: str) -> str:
-    """Clean table name to be valid"""
-    # Get base folder name
-    cleaned_name = table_name.split('/')[-2]
-    
-    # Remove special characters and file extensions
-    cleaned_name = ''.join(e for e in cleaned_name if e.isalnum() or e == '_')
-    cleaned_name = cleaned_name.replace('_csv', '') \
-                              .replace('_json', '') \
-                              .replace('_parquet', '') \
-                              .lower()
-                              
-    return cleaned_name
 
 def main():
     """Main function to execute the script"""
@@ -147,8 +132,8 @@ def main():
         
         # Get configuration
         bucket = get_env_var("S3_BUCKET", "datahub")
-        source_folder = get_env_var("SOURCE_FOLDER", "raw/")
-        target_folder = get_env_var("TARGET_FOLDER", "warehouse/")
+        source_folder = get_env_var("SOURCE_FOLDER", "raw/dummy/")
+        target_folder = get_env_var("TARGET_FOLDER", "polars/dummy/")
         file_format = get_env_var("FILE_FORMAT", "csv")
         separator = get_env_var("SEPARATOR", ",")
         
@@ -166,14 +151,13 @@ def main():
                 df = read_data(s3_path, file_format, separator)
                 
                 # Get table name from path
-                table_name = clean_table_name(file_path)
-                target_path = f"s3://{bucket}/{target_folder}{table_name}"
+                target_path = f"s3://{bucket}/{target_folder}"
                 
                 # Write to Delta
                 write_to_delta(df, target_path)
                 
             except Exception as e:
-                logger.error(f"Failed to process file {file_path}: {str(e)}")
+                logger.error("Failed to process file %s: %s", file_path, str(e))
                 continue
                 
         logger.info("Processing completed successfully")
