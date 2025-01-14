@@ -37,24 +37,34 @@ kubectl -n argo get secret argo-workflows-server-token -o jsonpath='{.data.token
 
 Make sure the VScode terminal will work with the remote Kubernetes cluster. This could be scripted if done a lot..  
 
-Run remote:
-- generate config with ```microk8s config > ~/.kube/microk8s-config``` 
-- check content with ```more ~/.kube/microk8s-config```
+Run local(inside .venv/bin/activate):
 
-Run local:
-- ```scp user@remote_host:~/.kube/microk8s-config ~/.kube/microk8s-config```
-- ```export KUBECONFIG=~/.kube/microk8s-config``` inside .venv/bin/activate
-- test it with ```kubectl config current-context```
+```bash
+mkdir -p ~/.kube
+scp user@remote_host:~/.kube/microk8s-config ~/.kube/microk8s-config
+chmod 600 ~/.kube/microk8s-config
+export KUBECONFIG=~/.kube/microk8s-config
+```  
+
+test it with:
+
+```bash
+kubectl config current-context
+```
 
 ### Add scheduled workflow on Kubernetes with Argo
 
 One:  
 
-- ```kubectl apply -f Argo/CronWorkflow/workflow_hello.yml```
+```bash
+kubectl apply -f Argo/CronWorkflow/workflow_hello.yml
+```
 
 Or all at once:
 
-- ```kubectl apply -f Argo/CronWorkflow/```
+```bash
+kubectl apply -f Argo/CronWorkflow/
+```
 
 ### Add secrets in Kubernetes cluster to be used by Python scripts
 
