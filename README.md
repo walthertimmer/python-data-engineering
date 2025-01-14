@@ -84,9 +84,8 @@ load_dotenv()
 
 ### Docker
 
-Contains Dockerfile to create image containing the python scripts and needed dependencies. 
+Contains Dockerfile to create image containing the python scripts and needed dependencies.  
 
 ```bash
 docker build -t python-scripts -f Docker/PythonImage.Dockerfile .
 ```
-

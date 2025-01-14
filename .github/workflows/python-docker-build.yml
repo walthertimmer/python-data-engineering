@@ -1,4 +1,4 @@
-# .github/workflows/docker-build.yml
+# .github/workflows/python-docker-build.yml
 name: Docker Build PythonImage and Push
 
 on:
@@ -6,9 +6,8 @@ on:
     branches:
       - master
     paths: # only run on changes in the following directories
-      - 'Docker/**'
+      - 'Docker/PythonImage**'
       - '.github/workflows/python-docker-build.yml'
-      # - 'PythonScripts/**'
 
 permissions:
   contents: read
@@ -36,22 +35,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Dask image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: Docker/DaskImage.Dockerfile
-          push: true
-          platforms: linux/amd64,linux/arm64
-          provenance: false
-          tags: |
-            ghcr.io/${{ github.repository }}/dask-scripts:latest
-            ghcr.io/${{ github.repository }}/dask-scripts:${{ github.sha }}
+      # - name: Build and push Dask image
+      #   uses: docker/build-push-action@v5
+      #   with:
+      #     context: .
+      #     file: Docker/DaskImage.Dockerfile
+      #     push: true
+      #     platforms: linux/amd64,linux/arm64
+      #     provenance: false
+      #     tags: |
+      #       ghcr.io/${{ github.repository }}/dask-scripts:latest
+      #       ghcr.io/${{ github.repository }}/dask-scripts:${{ github.sha }}
 
-      - name: Create manifest lists for dask
-        run: |
-          docker buildx imagetools create -t ghcr.io/${{ github.repository }}/dask-scripts:latest \
-          ghcr.io/${{ github.repository }}/dask-scripts:latest
+      # - name: Create manifest lists for dask
+      #   run: |
+      #     docker buildx imagetools create -t ghcr.io/${{ github.repository }}/dask-scripts:latest \
+      #     ghcr.io/${{ github.repository }}/dask-scripts:latest
 
       - name: Build and push Python image
         uses: docker/build-push-action@v5
@@ -78,9 +77,9 @@ jobs:
           package-type: 'container'
           min-versions-to-keep: 5
 
-      - name: Delete old Dask image versions
-        uses: actions/delete-package-versions@v4
-        with:
-          package-name: 'python-data-engineering/dask-scripts'
-          package-type: 'container'
-          min-versions-to-keep: 5
+      # - name: Delete old Dask image versions
+      #   uses: actions/delete-package-versions@v4
+      #   with:
+      #     package-name: 'python-data-engineering/dask-scripts'
+      #     package-type: 'container'
+      #     min-versions-to-keep: 5

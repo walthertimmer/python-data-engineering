@@ -1,0 +1,186 @@
+"""Transform raw data to Delta tables on S3 using Polars
+
+This script reads files from S3 and writes them to Delta format using Polars.
+Configuration is done via environment variables:
+- S3_ACCESS_KEY_ID: S3 access key
+- S3_SECRET_ACCESS_KEY: S3 secret key  
+- S3_ENDPOINT_URL: S3 endpoint URL
+- S3_BUCKET: S3 bucket name
+- SOURCE_FOLDER: Folder containing raw data
+- TARGET_FOLDER: Folder for Delta tables
+- FILE_FORMAT: Input file format (csv/json/parquet)
+- SEPARATOR: CSV separator character
+"""
+
+import os
+import logging
+# from pathlib import Path
+from typing import Optional
+import polars as pl
+from deltalake import DeltaTable, write_deltalake
+import boto3
+from dotenv import load_dotenv
+
+def setup_logging(log_level: str = "INFO") -> None:
+    """Configure logging with timestamp, level and message"""
+    logging.basicConfig(
+        level=log_level,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
+
+def get_env_var(var_name: str, default: Optional[str] = None) -> str:
+    """Get environment variable with optional default value"""
+    value = os.getenv(var_name, default)
+    if value is None:
+        raise ValueError(f"Missing required environment variable: {var_name}")
+    return value
+
+def get_s3_client():
+    """Create S3 client with custom endpoint"""
+    s3_access_key = get_env_var("S3_ACCESS_KEY_ID")
+    s3_secret_key = get_env_var("S3_SECRET_ACCESS_KEY")
+    s3_endpoint_url = get_env_var("S3_ENDPOINT_URL")
+    
+    return boto3.client(
+        's3',
+        aws_access_key_id=s3_access_key,
+        aws_secret_access_key=s3_secret_key,
+        endpoint_url=s3_endpoint_url
+    )
+
+def list_s3_files(bucket: str, prefix: str) -> list:
+    """List all files in S3 bucket with given prefix"""
+    s3_client = get_s3_client()
+    files = []
+    
+    paginator = s3_client.get_paginator('list_objects_v2')
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+        if 'Contents' in page:
+            files.extend([obj['Key'] for obj in page['Contents']])
+            
+    return files
+
+def read_data(file_path: str, file_format: str, separator: str = ",") -> pl.DataFrame:
+    """Read data from S3 into Polars DataFrame"""
+    logger = logging.getLogger(__name__)
+    logger.info(f"Reading {file_format} file: {file_path}")
+    
+    storage_options = {
+        "key": get_env_var("S3_ACCESS_KEY_ID"),
+        "secret": get_env_var("S3_SECRET_ACCESS_KEY"),
+        "endpoint_url": get_env_var("S3_ENDPOINT_URL")
+    }
+
+    try:
+        if file_format == "csv":
+            df = pl.read_csv(
+                file_path,
+                separator=separator,
+                storage_options=storage_options
+            )
+        elif file_format == "json":
+            df = pl.read_json(
+                file_path,
+                storage_options=storage_options
+            )
+        elif file_format == "parquet":
+            df = pl.read_parquet(
+                file_path,
+                storage_options=storage_options
+            )
+        else:
+            raise ValueError(f"Unsupported file format: {file_format}")
+            
+        return df
+        
+    except Exception as e:
+        logger.error(f"Failed to read file {file_path}: {str(e)}")
+        raise
+
+def write_to_delta(df: pl.DataFrame, table_path: str) -> None:
+    """Write Polars DataFrame to Delta format"""
+    logger = logging.getLogger(__name__)
+    logger.info(f"Writing to Delta table: {table_path}")
+    
+    try:
+        # Convert Polars DataFrame to Arrow Table
+        arrow_table = df.to_arrow()
+        
+        # Write to Delta format
+        write_deltalake(
+            table_path,
+            arrow_table,
+            mode="overwrite",
+            storage_options={
+                'AWS_ACCESS_KEY_ID': get_env_var("S3_ACCESS_KEY_ID"),
+                'AWS_SECRET_ACCESS_KEY': get_env_var("S3_SECRET_ACCESS_KEY"),
+                'AWS_ENDPOINT_URL': get_env_var("S3_ENDPOINT_URL")
+            }
+        )
+        logger.info("Successfully wrote to Delta format")
+        
+    except Exception as e:
+        logger.error(f"Failed to write Delta table: {str(e)}")
+        raise
+
+def clean_table_name(table_name: str) -> str:
+    """Clean table name to be valid"""
+    # Get base folder name
+    cleaned_name = table_name.split('/')[-2]
+    
+    # Remove special characters and file extensions
+    cleaned_name = ''.join(e for e in cleaned_name if e.isalnum() or e == '_')
+    cleaned_name = cleaned_name.replace('_csv', '') \
+                              .replace('_json', '') \
+                              .replace('_parquet', '') \
+                              .lower()
+                              
+    return cleaned_name
+
+def main():
+    """Main function to execute the script"""
+    try:
+        # Load environment variables
+        load_dotenv()
+        setup_logging()
+        logger = logging.getLogger(__name__)
+        
+        # Get configuration
+        bucket = get_env_var("S3_BUCKET", "datahub")
+        source_folder = get_env_var("SOURCE_FOLDER", "raw/")
+        target_folder = get_env_var("TARGET_FOLDER", "warehouse/")
+        file_format = get_env_var("FILE_FORMAT", "csv")
+        separator = get_env_var("SEPARATOR", ",")
+        
+        # List source files
+        source_files = list_s3_files(bucket, source_folder)
+        if not source_files:
+            logger.warning("No files found to process")
+            return
+            
+        # Process each file
+        for file_path in source_files:
+            try:
+                # Read data
+                s3_path = f"s3://{bucket}/{file_path}"
+                df = read_data(s3_path, file_format, separator)
+                
+                # Get table name from path
+                table_name = clean_table_name(file_path)
+                target_path = f"s3://{bucket}/{target_folder}{table_name}"
+                
+                # Write to Delta
+                write_to_delta(df, target_path)
+                
+            except Exception as e:
+                logger.error(f"Failed to process file {file_path}: {str(e)}")
+                continue
+                
+        logger.info("Processing completed successfully")
+        
+    except Exception as e:
+        logger.error(f"Process failed: {str(e)}")
+        raise
+
+if __name__ == "__main__":
+    main()
