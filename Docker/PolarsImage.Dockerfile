@@ -1,15 +1,6 @@
-FROM --platform=$TARGETPLATFORM python:3.13-alpine
+FROM python:3.13-slim
 
-LABEL org.opencontainers.image.description="Python 3.13 with Polars (Alpine-based)"
-
-# Install required build dependencies
-RUN apk add --no-cache \
-    gcc \
-    musl-dev \
-    python3-dev \
-    rust \
-    cargo \
-    make
+LABEL org.opencontainers.image.description="Python 3.13 with Polars"
 
 # Install Python dependencies
 COPY Docker/PolarsImage_requirements.txt /tmp/requirements.txt

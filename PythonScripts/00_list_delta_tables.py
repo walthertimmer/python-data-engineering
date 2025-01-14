@@ -65,8 +65,8 @@ def list_delta_tables(bucket_name, prefix=''):
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
     
-    bucket_name = get_env_var("S3_BUCKET", "datahub") # S3 bucket name
-    prefix = 'warehouse/'
+    bucket_name = get_env_var("S3_BUCKET", "datahub") 
+    prefix = get_env_var("PREFIX", 'warehouse/')
     tables = list_delta_tables(bucket_name,prefix=prefix)
     
     logging.info(f"Found {len(tables)} Delta tables")

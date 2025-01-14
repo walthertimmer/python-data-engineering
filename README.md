@@ -15,7 +15,10 @@ Jupyterhub example notebooks.
 Local docker container with jupyter notebook:
 
 - [Jupyter Docker Stacks](https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html)
-- ```docker pull quay.io/jupyter/all-spark-notebook```
+  
+```bash
+docker pull quay.io/jupyter/all-spark-notebook
+```
 
 ## PythonScripts
 
@@ -97,5 +100,7 @@ load_dotenv()
 Contains Dockerfile to create image containing the python scripts and needed dependencies.  
 
 ```bash
-docker build -t python-scripts -f Docker/PythonImage.Dockerfile .
+docker build -t python -f Docker/PythonImage.Dockerfile .
+docker build -t polars -f Docker/PolarsImage.Dockerfile .
+docker build -t dask -f Docker/DaskImage.Dockerfile .
 ```
