@@ -16,7 +16,7 @@ import os
 import logging
 from typing import Optional
 import polars as pl
-from deltalake import write_deltalake
+from deltalake import write_deltalake, DeltaTable
 import boto3
 from dotenv import load_dotenv
 
@@ -96,6 +96,26 @@ def read_data(file_path: str, file_format: str, separator: str = ",") -> pl.Data
         logger.error("Failed to read file %s: %s", file_path, str(e))
         raise
 
+def delete_delta_table(table_path: str) -> None:
+    """Remove delta table and files from S3"""
+    logger = logging.getLogger(__name__)
+    logger.info("Deleting Delta table: %s", table_path)
+    
+    try:
+        DeltaTable(
+            table_uri=table_path,
+            storage_options={
+                'AWS_ACCESS_KEY_ID': get_env_var("S3_ACCESS_KEY_ID"),
+                'AWS_SECRET_ACCESS_KEY': get_env_var("S3_SECRET_ACCESS_KEY"),
+                'AWS_ENDPOINT_URL': get_env_var("S3_ENDPOINT_URL")
+            }
+        ).delete()
+        logger.info("Successfully deleted Delta table")
+        
+    except Exception as e:
+        logger.error("Failed to delete Delta table: %s", str(e))
+        raise
+
 def write_to_delta(df: pl.DataFrame, table_path: str) -> None:
     """Write Polars DataFrame to Delta format"""
     logger = logging.getLogger(__name__)
@@ -105,18 +125,37 @@ def write_to_delta(df: pl.DataFrame, table_path: str) -> None:
         # Convert Polars DataFrame to Arrow Table
         arrow_table = df.to_arrow()
         
+        # check if there is already a delta table
+        try:
+            DeltaTable(
+                table_uri=table_path,
+                storage_options={
+                'AWS_ACCESS_KEY_ID': get_env_var("S3_ACCESS_KEY_ID"),
+                'AWS_SECRET_ACCESS_KEY': get_env_var("S3_SECRET_ACCESS_KEY"),
+                'AWS_ENDPOINT_URL': get_env_var("S3_ENDPOINT_URL")
+                }
+            )
+            logger.info("delta table exists.")
+            delete_delta_table(table_path)
+            
+        except Exception:
+            logger.info("delta table is new.")
+            
+        write_mode = "overwrite"
+        logger.info("Using write mode: %s", write_mode)
+        
         # Write to Delta format
         write_deltalake(
             table_path,
             arrow_table,
-            mode="overwrite",
+            mode=write_mode,
             storage_options={
                 'AWS_ACCESS_KEY_ID': get_env_var("S3_ACCESS_KEY_ID"),
                 'AWS_SECRET_ACCESS_KEY': get_env_var("S3_SECRET_ACCESS_KEY"),
                 'AWS_ENDPOINT_URL': get_env_var("S3_ENDPOINT_URL")
             }
         )
-        logger.info("Successfully wrote to Delta format")
+        logger.info("Successfully wrote to Delta format using %s mode", write_mode)
         
     except Exception as e:
         logger.error("Failed to write Delta table: %s", str(e))

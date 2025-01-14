@@ -1,0 +1,151 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: cron-load-warehouse-polars
+  namespace: argo
+  labels:
+    app: cron-load-warehouse-polars
+    environment: production
+  annotations:
+    description: "Process raw data to warehouse using Polars on S3"
+
+spec:
+  schedule: "0 3 * * *"  # Runs daily at 3 AM
+  concurrencyPolicy: Replace
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  
+  workflowSpec:
+    serviceAccountName: argo-workflows-server
+    entrypoint: run-script
+    
+    templates:
+    - name: run-script
+      dag:
+        tasks:
+        - name: load-warehouse-polars
+          template: load-warehouse-polars
+          dependencies: []
+    - name: notify-status
+      steps:
+      - - name: send-slack
+          template: slack-notification
+          arguments:
+            parameters:
+            - name: status
+              value: "{{workflow.status}}"
+
+    - name: load-warehouse-polars
+      container:
+        image: ghcr.io/walthertimmer/python-data-engineering/polars:latest
+        command: ["python", "/workspace/PythonScripts/20_load_warehouse_polars.py"]
+        imagePullPolicy: Always
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1"
+        env:
+          - name: S3_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: python-data-engineering
+                key: S3_ACCESS_KEY_ID
+                namespace: argo
+          - name: S3_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: python-data-engineering
+                key: S3_SECRET_ACCESS_KEY
+                namespace: argo
+          - name: S3_ENDPOINT_URL
+            valueFrom:
+              secretKeyRef:
+                name: python-data-engineering
+                key: S3_ENDPOINT_URL
+                namespace: argo
+          - name: S3_BUCKET
+            valueFrom:
+              secretKeyRef:
+                name: python-data-engineering
+                key: S3_BUCKET
+                namespace: argo
+          - name: SOURCE_FOLDER
+            value: "raw/dummy/"
+          - name: TARGET_FOLDER
+            value: "polars/dummy/"
+          - name: FILE_FORMAT
+            value: "csv"
+          - name: SEPARATOR
+            value: ","
+        volumeMounts:
+          - name: workdir
+            mountPath: /workdir
+          - name: scripts-volume
+            mountPath: /workspace
+        workingDir: /workdir
+      initContainers:
+      - name: git-clone
+        image: alpine/git:latest
+        command:
+          - sh
+          - -c
+        args:
+          - git clone https://github.com/walthertimmer/python-data-engineering.git /workspace
+        volumeMounts:
+          - name: scripts-volume
+            mountPath: /workspace
+
+    - name: slack-notification
+      inputs:
+        parameters:
+        - name: status
+      container:
+        image: curlimages/curl
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          MESSAGE=$(cat << EOF
+          *Workflow Details*
+          • Name: {{workflow.name}}
+          • Status: {{inputs.parameters.status}}
+          • Namespace: {{workflow.namespace}}
+          • ID: {{workflow.uid}}
+          • Start: {{workflow.creationTimestamp}}
+          • Duration: {{workflow.duration}}
+          • Node: {{pod.name}}
+          EOF
+          )
+          echo "Sending Slack notification: $MESSAGE"
+          curl -X POST -H 'Content-type: application/json' \
+          --data "{\"text\":\"$MESSAGE\"}" \
+          $(SLACK_WEBHOOK_URL) 2>&1
+        env:
+        - name: SLACK_WEBHOOK_URL
+          valueFrom:
+            secretKeyRef:
+              name: python-data-engineering
+              key: SLACK_WEBHOOK_URL
+
+    volumes:
+    - name: workdir
+      emptyDir: {}
+    - name: scripts-volume
+      emptyDir: {}
+
+    onExit: notify-status
+
+    activeDeadlineSeconds: 3600  # Must complete within 1 hour
+    ttlStrategy:
+      secondsAfterCompletion: 604800  # 7 days
+      successfulWorkflowTTL: "168h"   # 7 days in hours
+      failedWorkflowTTL: "168h"       # 7 days in hours
+    podGC:
+      strategy: OnWorkflowCompletion
+      labelSelector:
+        matchLabels:
+          workflows.argoproj.io/completed: "true"
+      minSuccessfulWorkflowsToRetain: 1
+      minFailedWorkflowsToRetain: 1

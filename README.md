@@ -31,14 +31,29 @@ Contains workflows to be used by Argo to run said Python scripts.
 Login to the GUI with a Bearer token:
 
 ```bash
-kubectl -n argo get secret argo-workflows-server-token -o jsonpath='{.data.token}' | base64 --decode
+TOKEN=$(microk8s kubectl -n argo get secret argo-workflows-server-token -o jsonpath='{.data.token}' | base64 --decode)
+BEARER_TOKEN="Bearer $TOKEN"
+echo $BEARER_TOKEN
 ```
 
 - [Argo Workflows Releases](https://github.com/argoproj/argo-workflows/releases/)
 
+### Dashboard access
+
+```bash
+microk8s kubectl -n kube-system describe secret $(kubectl -n kube-system get secret | grep default-token | awk '{print $1}')
+```
+
 ### Kubectl config
 
 Make sure the VScode terminal will work with the remote Kubernetes cluster. This could be scripted if done a lot..  
+
+Run remote
+
+```bash
+ssh user@remote_host
+microk8s config > ~/.kube/microk8s-config
+```
 
 Run local(inside .venv/bin/activate):
 
