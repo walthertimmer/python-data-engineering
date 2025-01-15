@@ -21,6 +21,7 @@ import boto3
 from dotenv import load_dotenv
 from datetime import timedelta
 import time
+import s3fs
 
 def setup_logging(log_level: str = "INFO") -> None:
     """Configure logging with timestamp, level and message"""
@@ -73,6 +74,16 @@ def read_data(file_path: str, file_format: str, separator: str = ",") -> pl.Data
     }
 
     try:
+        # Verify S3 path exists
+        fs = s3fs.S3FileSystem(
+            key=storage_options["key"],
+            secret=storage_options["secret"],
+            endpoint_url=storage_options["endpoint_url"]
+        )
+        
+        if not fs.exists(file_path.replace("s3://", "")):
+            raise FileNotFoundError(f"File not found in S3: {file_path}")
+        
         # https://docs.pola.rs/api/python/stable/reference/api/polars.read_csv.html
         if file_format == "csv":
             df = pl.read_csv(
