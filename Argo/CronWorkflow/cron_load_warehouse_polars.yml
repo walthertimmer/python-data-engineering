@@ -27,15 +27,15 @@ spec:
           template: load-warehouse-polars
           dependencies: []
           arguments:
-          parameters:
-          - name: SOURCE_FOLDER
-            value: "raw/dummy/"
-          - name: TARGET_FOLDER 
-            value: "polars/dummy/"
-          - name: FILE_FORMAT
-            value: "csv"
-          - name: SEPARATOR
-            value: ","
+            parameters:
+            - name: SOURCE_FOLDER
+              value: "raw/dummy/"
+            - name: TARGET_FOLDER 
+              value: "polars/dummy/"
+            - name: FILE_FORMAT
+              value: "csv"
+            - name: SEPARATOR
+              value: ","
 
         - name: load-warehouse-kvk
           template: load-warehouse-polars  
@@ -104,11 +104,11 @@ spec:
 
     - name: load-warehouse-polars
       inputs:
-      parameters:
-      - name: SOURCE_FOLDER
-      - name: TARGET_FOLDER
-      - name: FILE_FORMAT
-      - name: SEPARATOR
+        parameters:
+          - name: SOURCE_FOLDER
+          - name: TARGET_FOLDER
+          - name: FILE_FORMAT
+          - name: SEPARATOR
       container:
         image: ghcr.io/walthertimmer/python-data-engineering/polars:latest
         command: ["python", "/workspace/PythonScripts/20_load_warehouse_polars.py"]
