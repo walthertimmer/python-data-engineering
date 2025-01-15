@@ -23,9 +23,76 @@ spec:
     - name: run-script
       dag:
         tasks:
-        - name: load-warehouse-polars
+        - name: load-warehouse-dummy
           template: load-warehouse-polars
           dependencies: []
+          arguments:
+          parameters:
+          - name: SOURCE_FOLDER
+            value: "raw/dummy/"
+          - name: TARGET_FOLDER 
+            value: "polars/dummy/"
+          - name: FILE_FORMAT
+            value: "csv"
+          - name: SEPARATOR
+            value: ","
+
+        - name: load-warehouse-kvk
+          template: load-warehouse-polars  
+          dependencies: ["load-warehouse-dummy"]
+          arguments:
+            parameters:
+            - name: SOURCE_FOLDER
+              value: "raw/kvk-company/"
+            - name: TARGET_FOLDER
+              value: "polars/kvk-company/"
+            - name: FILE_FORMAT
+              value: "csv"
+            - name: SEPARATOR
+              value: ","
+          
+        - name: load-warehouse-rdw-defect-defs
+          template: load-warehouse-polars
+          dependencies: ["load-warehouse-kvk"]  
+          arguments:
+            parameters:
+            - name: SOURCE_FOLDER
+              value: "raw/rdw-defect-definitions/"
+            - name: TARGET_FOLDER
+              value: "polars/rdw-defect-definitions/"
+            - name: FILE_FORMAT
+              value: "csv"
+            - name: SEPARATOR
+              value: ","
+
+        - name: load-warehouse-rdw-defects  
+          template: load-warehouse-polars
+          dependencies: ["load-warehouse-rdw-defect-defs"]
+          arguments:
+            parameters:
+            - name: SOURCE_FOLDER
+              value: "raw/rdw-defects/"
+            - name: TARGET_FOLDER
+              value: "polars/rdw-defects/"
+            - name: FILE_FORMAT
+              value: "csv"
+            - name: SEPARATOR
+              value: ","
+
+        - name: load-warehouse-rdw-vehicles
+          template: load-warehouse-polars
+          dependencies: ["load-warehouse-rdw-defects"]
+          arguments:
+            parameters:
+            - name: SOURCE_FOLDER
+              value: "raw/rdw-vehicles/"
+            - name: TARGET_FOLDER
+              value: "polars/rdw-vehicles/"
+            - name: FILE_FORMAT
+              value: "json"
+            - name: SEPARATOR
+              value: ""
+
     - name: notify-status
       steps:
       - - name: send-slack
@@ -36,6 +103,12 @@ spec:
               value: "{{workflow.status}}"
 
     - name: load-warehouse-polars
+      inputs:
+      parameters:
+      - name: SOURCE_FOLDER
+      - name: TARGET_FOLDER
+      - name: FILE_FORMAT
+      - name: SEPARATOR
       container:
         image: ghcr.io/walthertimmer/python-data-engineering/polars:latest
         command: ["python", "/workspace/PythonScripts/20_load_warehouse_polars.py"]
@@ -45,8 +118,8 @@ spec:
             memory: "1Gi"
             cpu: "500m"
           limits:
-            memory: "2Gi"
-            cpu: "1"
+            memory: "4Gi"
+            cpu: "4"
         env:
           - name: S3_ACCESS_KEY_ID
             valueFrom:
@@ -73,13 +146,13 @@ spec:
                 key: S3_BUCKET
                 namespace: argo
           - name: SOURCE_FOLDER
-            value: "raw/dummy/"
+            value: "{{inputs.parameters.SOURCE_FOLDER}}"
           - name: TARGET_FOLDER
-            value: "polars/dummy/"
+            value: "{{inputs.parameters.TARGET_FOLDER}}"
           - name: FILE_FORMAT
-            value: "csv"
+            value: "{{inputs.parameters.FILE_FORMAT}}"
           - name: SEPARATOR
-            value: ","
+            value: "{{inputs.parameters.SEPARATOR}}"
         volumeMounts:
           - name: workdir
             mountPath: /workdir

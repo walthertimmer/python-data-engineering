@@ -19,6 +19,8 @@ import polars as pl
 from deltalake import write_deltalake, DeltaTable
 import boto3
 from dotenv import load_dotenv
+from datetime import timedelta
+import time
 
 def setup_logging(log_level: str = "INFO") -> None:
     """Configure logging with timestamp, level and message"""
@@ -96,24 +98,52 @@ def read_data(file_path: str, file_format: str, separator: str = ",") -> pl.Data
         logger.error("Failed to read file %s: %s", file_path, str(e))
         raise
 
-def delete_delta_table(table_path: str) -> None:
-    """Remove delta table and files from S3"""
+def optimize_delta_table(table_path: str) -> None:
+    """Optimize Delta table to improve performance"""
     logger = logging.getLogger(__name__)
-    logger.info("Deleting Delta table: %s", table_path)
+    logger.info("Optimizing Delta table: %s", table_path)
     
     try:
-        DeltaTable(
+        storage_options = {
+            'AWS_ACCESS_KEY_ID': get_env_var("S3_ACCESS_KEY_ID"),
+            'AWS_SECRET_ACCESS_KEY': get_env_var("S3_SECRET_ACCESS_KEY"), 
+            'AWS_ENDPOINT_URL': get_env_var("S3_ENDPOINT_URL")
+        }
+        
+        # Get Delta table instance
+        logger.info("Getting Delta table")
+        delta_table = DeltaTable(
             table_uri=table_path,
-            storage_options={
-                'AWS_ACCESS_KEY_ID': get_env_var("S3_ACCESS_KEY_ID"),
-                'AWS_SECRET_ACCESS_KEY': get_env_var("S3_SECRET_ACCESS_KEY"),
-                'AWS_ENDPOINT_URL': get_env_var("S3_ENDPOINT_URL")
-            }
-        ).delete()
-        logger.info("Successfully deleted Delta table")
+            storage_options=storage_options
+        )
+        
+        # Log table statistics before optimization
+        logger.info("Delta table details:")
+        logger.info("- Number of files: %d", len(delta_table.files()))
+        logger.info("- Table version: %s", delta_table.version())
+        
+        # Optimize table
+        logger.info("Starting table optimization...")
+        start_time = time.time()
+        optimize_result = delta_table.optimize.compact(
+            target_size=256 # MB
+        )
+        duration = time.time() - start_time
+        logger.info("Optimization completed in %.2f seconds", duration)
+        logger.info("Optimization stats: %s", optimize_result)
+        
+        # Vacuum table
+        logger.info("Starting vacuum operation...")
+        start_time = time.time()
+        vacuum_result = delta_table.vacuum(retention_hours=168)  # Clean up old files
+        duration = time.time() - start_time
+        logger.info("Vacuum completed in %.2f seconds", duration)
+        logger.info("Vacuum stats: %s", vacuum_result)
+        
+        logger.info("Successfully completed all maintenance operations")
         
     except Exception as e:
-        logger.error("Failed to delete Delta table: %s", str(e))
+        logger.error("Failed to optimize table: %s", str(e))
         raise
 
 def write_to_delta(df: pl.DataFrame, table_path: str) -> None:
@@ -122,45 +152,31 @@ def write_to_delta(df: pl.DataFrame, table_path: str) -> None:
     logger.info("Writing to Delta table: %s", table_path)
     
     try:
+        # Log DataFrame statistics
+        logger.info(f"Writing DataFrame with {df.shape[0]:,} rows and {df.shape[1]} columns")
+        logger.info(f"Estimated memory usage: {df.estimated_size('mb'):.2f} MB")
+        
         # Convert Polars DataFrame to Arrow Table
         arrow_table = df.to_arrow()
         
-        # check if there is already a delta table
-        try:
-            DeltaTable(
-                table_uri=table_path,
-                storage_options={
-                'AWS_ACCESS_KEY_ID': get_env_var("S3_ACCESS_KEY_ID"),
-                'AWS_SECRET_ACCESS_KEY': get_env_var("S3_SECRET_ACCESS_KEY"),
-                'AWS_ENDPOINT_URL': get_env_var("S3_ENDPOINT_URL")
-                }
-            )
-            logger.info("delta table exists.")
-            delete_delta_table(table_path)
-            
-        except Exception:
-            logger.info("delta table is new.")
-            
-        write_mode = "overwrite"
-        logger.info("Using write mode: %s", write_mode)
+        storage_options = {
+            'AWS_ACCESS_KEY_ID': get_env_var("S3_ACCESS_KEY_ID"),
+            'AWS_SECRET_ACCESS_KEY': get_env_var("S3_SECRET_ACCESS_KEY"), 
+            'AWS_ENDPOINT_URL': get_env_var("S3_ENDPOINT_URL")
+        }
         
-        # Write to Delta format
+        # Always use overwrite for staging
         write_deltalake(
             table_path,
             arrow_table,
-            mode=write_mode,
-            storage_options={
-                'AWS_ACCESS_KEY_ID': get_env_var("S3_ACCESS_KEY_ID"),
-                'AWS_SECRET_ACCESS_KEY': get_env_var("S3_SECRET_ACCESS_KEY"),
-                'AWS_ENDPOINT_URL': get_env_var("S3_ENDPOINT_URL")
-            }
+            mode="overwrite",
+            storage_options=storage_options
         )
-        logger.info("Successfully wrote to Delta format using %s mode", write_mode)
-        
+        logger.info("Successfully wrote to Delta table")
     except Exception as e:
         logger.error("Failed to write Delta table: %s", str(e))
         raise
-
+    
 def main():
     """Main function to execute the script"""
     try:
@@ -198,7 +214,10 @@ def main():
             except Exception as e:
                 logger.error("Failed to process file %s: %s", file_path, str(e))
                 continue
-                
+        
+        # Optimize Delta tables
+        optimize_delta_table(target_path)
+         
         logger.info("Processing completed successfully")
         
     except Exception as e:
