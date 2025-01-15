@@ -73,14 +73,19 @@ def read_data(file_path: str, file_format: str, separator: str = ",") -> pl.Data
     }
 
     try:
+        # https://docs.pola.rs/api/python/stable/reference/api/polars.read_csv.html
         if file_format == "csv":
             df = pl.read_csv(
                 file_path,
                 separator=separator,
                 storage_options=storage_options
+                # low_memory=True
+                # rechunk=False
+                # row_count_limit=None
             )
         elif file_format == "json":
-            df = pl.read_json(
+            # read_json does not support s3 paths
+            df = pl.read_ndjson(
                 file_path,
                 storage_options=storage_options
             )

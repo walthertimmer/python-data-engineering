@@ -118,8 +118,8 @@ spec:
             memory: "1Gi"
             cpu: "500m"
           limits:
-            memory: "4Gi"
-            cpu: "4"
+            memory: "10Gi"
+            cpu: "6"
         env:
           - name: S3_ACCESS_KEY_ID
             valueFrom:
