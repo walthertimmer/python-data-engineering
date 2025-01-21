@@ -106,7 +106,16 @@ def read_data(
     logger = logging.getLogger(__name__)
     logger.info("Reading %s file: %s", file_format, file_path)
 
-    storage_options = {
+    # Storage options for CSV - uses lowercase keys
+    storage_options_csv = {
+        "key": get_env_var("S3_ACCESS_KEY_ID"),
+        "secret": get_env_var("S3_SECRET_ACCESS_KEY"),
+        "endpoint_url": get_env_var("S3_ENDPOINT_URL"),
+        "use_ssl": True
+    }
+
+    # Storage options for Parquet - uses uppercase AWS keys
+    storage_options_parquet = {
         "AWS_ACCESS_KEY_ID": get_env_var("S3_ACCESS_KEY_ID"),
         "AWS_SECRET_ACCESS_KEY": get_env_var("S3_SECRET_ACCESS_KEY"),
         "AWS_ENDPOINT_URL": get_env_var("S3_ENDPOINT_URL")
@@ -133,7 +142,7 @@ def read_data(
             df = pl.read_csv(
                 file_path,
                 separator=separator,
-                storage_options=storage_options
+                storage_options=storage_options_csv
             )
         elif file_format == "json":
             # https://docs.pola.rs/api/python/stable/reference/api/polars.read_json.html
@@ -154,7 +163,7 @@ def read_data(
         elif file_format == "parquet":
             df = pl.read_parquet(
                 file_path,
-                storage_options=storage_options
+                storage_options=storage_options_parquet
             )
         else:
             raise ValueError(f"Unsupported file format: {file_format}")
@@ -254,9 +263,9 @@ def main():
         
         # Get configuration
         bucket = get_env_var("S3_BUCKET", "datahub")
-        source_folder = get_env_var("SOURCE_FOLDER", "raw/dummy-parquet/")
-        target_folder = get_env_var("TARGET_FOLDER", "polars/dummy-parquet/")
-        file_format = get_env_var("FILE_FORMAT", "parquet")
+        source_folder = get_env_var("SOURCE_FOLDER", "raw/dummy-csv/")
+        target_folder = get_env_var("TARGET_FOLDER", "polars/dummy-csv/")
+        file_format = get_env_var("FILE_FORMAT", "csv")
         separator = get_env_var("SEPARATOR", ",")
         
         # List source files
