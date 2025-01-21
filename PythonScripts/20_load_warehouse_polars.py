@@ -107,11 +107,11 @@ def read_data(
     logger.info("Reading %s file: %s", file_format, file_path)
 
     storage_options = {
-        "key": get_env_var("S3_ACCESS_KEY_ID"),
-        "secret": get_env_var("S3_SECRET_ACCESS_KEY"),
-        "endpoint_url": get_env_var("S3_ENDPOINT_URL")
+        "AWS_ACCESS_KEY_ID": get_env_var("S3_ACCESS_KEY_ID"),
+        "AWS_SECRET_ACCESS_KEY": get_env_var("S3_SECRET_ACCESS_KEY"),
+        "AWS_ENDPOINT_URL": get_env_var("S3_ENDPOINT_URL")
     }
-    
+        
     # Check if file is accessible
     s3_client = get_s3_client()
     
@@ -243,7 +243,7 @@ def write_to_delta(df: pl.DataFrame, table_path: str) -> None:
     except Exception as e:
         logger.error("Failed to write Delta table: %s", str(e))
         raise
-    
+
 def main():
     """Main function to execute the script"""
     try:
@@ -254,9 +254,9 @@ def main():
         
         # Get configuration
         bucket = get_env_var("S3_BUCKET", "datahub")
-        source_folder = get_env_var("SOURCE_FOLDER", "raw/dummy-json/")
-        target_folder = get_env_var("TARGET_FOLDER", "polars/dummy-json/")
-        file_format = get_env_var("FILE_FORMAT", "json")
+        source_folder = get_env_var("SOURCE_FOLDER", "raw/dummy-parquet/")
+        target_folder = get_env_var("TARGET_FOLDER", "polars/dummy-parquet/")
+        file_format = get_env_var("FILE_FORMAT", "parquet")
         separator = get_env_var("SEPARATOR", ",")
         
         # List source files
