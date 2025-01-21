@@ -1,16 +1,4 @@
-"""Transform raw data to Delta tables on S3 using Polars
-
-This script reads files from S3 and writes them to Delta format using Polars.
-Configuration is done via environment variables:
-- S3_ACCESS_KEY_ID: S3 access key
-- S3_SECRET_ACCESS_KEY: S3 secret key  
-- S3_ENDPOINT_URL: S3 endpoint URL
-- S3_BUCKET: S3 bucket name
-- SOURCE_FOLDER: Folder containing raw data
-- TARGET_FOLDER: Folder for Delta tables
-- FILE_FORMAT: Input file format (csv/json/parquet)
-- SEPARATOR: CSV separator character
-"""
+"""Transform raw data to Delta tables on S3 using Polars"""
 
 import os
 import sys
