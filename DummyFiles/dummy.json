@@ -1,0 +1,104 @@
+[
+    {
+        "name": "John Doe",
+        "age": 30,
+        "email": "johndoe@example.com",
+        "address": {
+            "street": "123 Main St",
+            "city": "Anytown",
+            "state": "CA",
+            "postalCode": "12345"
+        },
+        "phoneNumbers": [
+            {
+                "type": "home",
+                "number": "555-555-5555"
+            },
+            {
+                "type": "work",
+                "number": "555-555-5556"
+            }
+        ],
+        "active": true
+    },
+    {
+        "name": "Jane Smith",
+        "age": 28,
+        "email": "janesmith@example.com",
+        "address": {
+            "street": "456 Oak Ave",
+            "city": "Springfield",
+            "state": "IL",
+            "postalCode": "67890"
+        },
+        "phoneNumbers": [
+            {
+                "type": "mobile",
+                "number": "555-555-5557"
+            }
+        ],
+        "active": true
+    },
+    {
+        "name": "Bob Wilson",
+        "age": 45,
+        "email": "bobwilson@example.com",
+        "address": {
+            "street": "789 Pine Rd",
+            "city": "Riverside",
+            "state": "TX",
+            "postalCode": "54321"
+        },
+        "phoneNumbers": [
+            {
+                "type": "home",
+                "number": "555-555-5558"
+            },
+            {
+                "type": "work",
+                "number": "555-555-5559"
+            }
+        ],
+        "active": false
+    },
+    {
+        "name": "Sarah Johnson",
+        "age": 35,
+        "email": "sarahj@example.com",
+        "address": {
+            "street": "321 Elm St",
+            "city": "Metropolis",
+            "state": "NY",
+            "postalCode": "98765"
+        },
+        "phoneNumbers": [
+            {
+                "type": "mobile",
+                "number": "555-555-5560"
+            }
+        ],
+        "active": true
+    },
+    {
+        "name": "Mike Brown",
+        "age": 52,
+        "email": "mikebrown@example.com",
+        "address": {
+            "street": "654 Maple Dr",
+            "city": "Lake City",
+            "state": "FL",
+            "postalCode": "34567"
+        },
+        "phoneNumbers": [
+            {
+                "type": "home",
+                "number": "555-555-5561"
+            },
+            {
+                "type": "work",
+                "number": "555-555-5562"
+            }
+        ],
+        "active": true
+    }
+]

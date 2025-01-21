@@ -23,23 +23,51 @@ spec:
     - name: run-script
       dag:
         tasks:
-        - name: load-warehouse-dummy
+        - name: load-warehouse-dummy-csv
           template: load-warehouse-polars
           dependencies: []
           arguments:
             parameters:
             - name: SOURCE_FOLDER
-              value: "raw/dummy/"
+              value: "raw/dummy-csv/"
             - name: TARGET_FOLDER 
-              value: "polars/dummy/"
+              value: "polars/dummy-csv/"
             - name: FILE_FORMAT
               value: "csv"
             - name: SEPARATOR
               value: ","
 
+        - name: load-warehouse-dummy-json
+          template: load-warehouse-polars
+          dependencies: ["load-warehouse-dummy-csv"]
+          arguments:
+            parameters:
+            - name: SOURCE_FOLDER
+              value: "raw/dummy-json/"
+            - name: TARGET_FOLDER 
+              value: "polars/dummy-json/"
+            - name: FILE_FORMAT
+              value: "json"
+            - name: SEPARATOR
+              value: ","
+
+        - name: load-warehouse-dummy-parquet
+          template: load-warehouse-polars
+          dependencies: ["load-warehouse-dummy-json"]
+          arguments:
+            parameters:
+            - name: SOURCE_FOLDER
+              value: "raw/dummy-parquet/"
+            - name: TARGET_FOLDER 
+              value: "polars/dummy-parquet/"
+            - name: FILE_FORMAT
+              value: "parquet"
+            - name: SEPARATOR
+              value: ","
+
         - name: load-warehouse-kvk
           template: load-warehouse-polars  
-          dependencies: ["load-warehouse-dummy"]
+          dependencies: ["load-warehouse-dummy-parquet"]
           arguments:
             parameters:
             - name: SOURCE_FOLDER
