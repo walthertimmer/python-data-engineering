@@ -261,6 +261,9 @@ def main():
         setup_logging()
         logger = logging.getLogger(__name__)
         
+        # Limit memory usage, triggering disk spilling
+        os.environ["POLARS_MAX_MEMORY"] = "8GB"
+        
         # Get configuration
         bucket = get_env_var("S3_BUCKET", "datahub")
         source_folder = get_env_var("SOURCE_FOLDER", "raw/dummy-csv/")
