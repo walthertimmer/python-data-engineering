@@ -21,7 +21,7 @@ numpy==2.2.2
 polars==1.20.0
 propcache==0.2.1
 psutil==6.1.1
-py4j==0.10.9.9
+py4j==0.10.9.7
 pyarrow==19.0.0
 pyspark==3.5.4
 python-dateutil==2.9.0.post0
