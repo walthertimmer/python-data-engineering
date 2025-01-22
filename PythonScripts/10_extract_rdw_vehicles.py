@@ -16,8 +16,9 @@ If there was a successful run only <1 month data will be fetched.
 import logging
 import os
 import sys
+import io
 from datetime import datetime
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Union
 import json
 import time
 import requests
@@ -25,6 +26,7 @@ from dotenv import load_dotenv
 import boto3
 from botocore.exceptions import ClientError
 from dateutil.relativedelta import relativedelta
+import polars as pl
 
 try:
     load_dotenv()
@@ -107,7 +109,11 @@ def get_date_filter(last_run: str) -> str:
         return f"?$where=datum_eerste_toelating >= '{formatted_date}'"
     return ""
 
-def fetch_rdw_data(base_url: str, offset: int, limit: int = 1000, max_retries: int = 3) -> List[Dict]:
+def fetch_rdw_data(
+    base_url: str, 
+    offset: int, 
+    limit: int = 1000, 
+    max_retries: int = 3) -> List[Dict]:
     """Fetch data from RDW API with pagination and small sleep
     
     Returns:
@@ -156,7 +162,10 @@ def fetch_rdw_data(base_url: str, offset: int, limit: int = 1000, max_retries: i
                 raise
     return None  # Added explicit return None for when all retries fail
 
-def save_to_s3(data: str, bucket_name: str, object_name: str) -> None:
+def save_to_s3(
+    data: Union[str, bytes], 
+    bucket_name: str, 
+    object_name: str) -> None:
     """Save data to S3 bucket"""
     try:
         logger = logging.getLogger(__name__)
@@ -178,16 +187,13 @@ def save_checkpoint(bucket_name: str, prefix: str, offset: int) -> None:
     """Save current processing offset to S3"""
     logger = logging.getLogger(__name__)
     logger.info("Saving checkpoint to S3 at offset %d", offset)
-    checkpoint_file = f"{prefix}checkpoint.json"
-    checkpoint_data = {
-        'offset': offset,
-        'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    }
+    checkpoint_file_name = f"{prefix}checkpoint.txt"
+    checkpoint_data = f"{offset}\n{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     s3_client = get_s3_client()
     s3_client.put_object(
         Bucket=bucket_name,
-        Key=checkpoint_file,
-        Body=json.dumps(checkpoint_data)
+        Key=checkpoint_file_name,
+        Body=checkpoint_data
     )
     logger.info("Saving checkpoint to S3 successful")
 
@@ -195,14 +201,32 @@ def get_checkpoint(bucket_name: str, prefix: str) -> int:
     """Get last saved offset from checkpoint"""
     logger = logging.getLogger(__name__)
     try:
-        checkpoint_file = f"{prefix}checkpoint.json"
+        checkpoint_file = f"{prefix}checkpoint.txt"
         s3_client = get_s3_client()
-        logger.info("Checking for checkpoint file")
+        logger.info("Checking for checkpoint file at %s", checkpoint_file)
         response = s3_client.get_object(Bucket=bucket_name, Key=checkpoint_file)
-        checkpoint_data = json.loads(response['Body'].read().decode('utf-8'))
-        return checkpoint_data['offset']
-    except:
+        checkpoint_data = response['Body'].read().decode('utf-8')
+        # Get first line containing offset
+        offset = int(checkpoint_data.split('\n')[0])
+        return offset
+    except s3_client.exceptions.NoSuchKey:
+        logger.info("No checkpoint found, starting from beginning")
         return 0
+    except Exception as e:
+        logger.error("Error reading checkpoint: %s", str(e))
+        return 0
+    
+def cleanup_checkpoint(bucket_name: str, prefix: str) -> None:
+    """Delete checkpoint file after successful run"""
+    logger = logging.getLogger(__name__)
+    checkpoint_file = f"{prefix}checkpoint.txt"
+    try:
+        logger.info("Cleaning up Checkpoint file at %s", checkpoint_file)
+        s3_client = get_s3_client()
+        s3_client.delete_object(Bucket=bucket_name, Key=checkpoint_file)
+        logger.info("Checkpoint file cleaned up successfully")
+    except Exception as e:
+        logger.warning("Failed to cleanup checkpoint file: %s", str(e))
 
 def main() -> None:
     """Main function to extract RDW data and save to S3"""
@@ -234,7 +258,7 @@ def main() -> None:
             url = base_url + date_filter
         else:
             url = base_url
-        logger.info("API URL: %s", url)
+        logger.info("Using API URL: %s", url)
 
         # Get starting offset from checkpoint
         offset = get_checkpoint(bucket_name, target_prefix)
@@ -257,11 +281,18 @@ def main() -> None:
                 # Save intermediate results every 100K records
                 if len(all_data) % 100000 == 0:
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    intermediate_file = f"{target_prefix}rdw_vehicles_batch_{offset}_{timestamp}.json"
+                    intermediate_file = f"{target_prefix}rdw_vehicles_batch_{offset}_{timestamp}.parquet"
+                    
+                    # Convert to DataFrame and directly to parquet bytes
+                    df = pl.DataFrame(all_data)
+                    buffer = io.BytesIO()
+                    df.write_parquet(file=buffer)
+                    parquet_bytes = buffer.getvalue()
+                    
                     save_to_s3(
-                        json.dumps(all_data),
-                        bucket_name,
-                        intermediate_file
+                        data=parquet_bytes,
+                        bucket_name=bucket_name,
+                        object_name=intermediate_file
                     )
                     all_data = []  # Clear memory
                 
@@ -275,23 +306,23 @@ def main() -> None:
         # Save any remaining data
         if all_data:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            final_file = f"{target_prefix}rdw_vehicles_final_{timestamp}.json"
+            final_file = f"{target_prefix}rdw_vehicles_final_{timestamp}.parquet"
+            
+            # Convert to DataFrame and directly to parquet bytes
+            df = pl.DataFrame(all_data)
+            buffer = io.BytesIO()
+            df.write_parquet(file=buffer)
+            parquet_bytes = buffer.getvalue()
+            
             save_to_s3(
-                json.dumps(all_data),
-                bucket_name,
-                final_file
+                data=parquet_bytes,
+                bucket_name=bucket_name,
+                object_name=final_file
             )
             save_last_run_timestamp(bucket_name, target_prefix)
             
             # Cleanup checkpoint file after successful run
-            checkpoint_key = f"{target_prefix}checkpoint.json"
-            try:
-                logger.info("Cleaning up Checkpoint file")
-                s3_client = get_s3_client()
-                s3_client.delete_object(Bucket=bucket_name, Key=checkpoint_key)
-                logger.info("Checkpoint file cleaned up successfully")
-            except Exception as e:
-                logger.warning("Failed to cleanup checkpoint file: %s", str(e))
+            cleanup_checkpoint(bucket_name, target_prefix)
 
         # Log completion
         duration = datetime.now() - start_time

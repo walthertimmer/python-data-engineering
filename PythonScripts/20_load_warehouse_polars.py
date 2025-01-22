@@ -282,7 +282,6 @@ def main():
         # Get schema from first file
         first_file = source_files[0]
         schema = get_dynamic_schema(get_s3_client(), bucket, first_file, file_format, separator)
-        logger.info("Inferred schema: %s", schema)
         
         # Initialize empty list to store dataframes
         dfs = []
