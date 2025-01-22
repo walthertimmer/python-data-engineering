@@ -13,9 +13,24 @@ spec:
   concurrencyPolicy: Replace
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
+
   workflowSpec:
     serviceAccountName: argo-workflows-server
     entrypoint: run-script
+    onExit: notify-status
+    activeDeadlineSeconds: 72000  # Must complete within 20 hour
+    ttlStrategy:
+      secondsAfterCompletion: 604800  # 7 days (7 * 24 * 60 * 60)
+      successfulWorkflowTTL: "168h"   # 7 days in hours
+      failedWorkflowTTL: "168h"       # 7 days in hours
+    podGC:
+      strategy: OnWorkflowCompletion
+      labelSelector:
+        matchLabels:
+          workflows.argoproj.io/completed: "true"
+      minSuccessfulWorkflowsToRetain: 1
+      minFailedWorkflowsToRetain: 1
+
     templates:
     - name: run-script
       dag:
@@ -24,14 +39,28 @@ spec:
           template: extract-rdw-data
 
     - name: extract-rdw-data
+      initContainers:
+      - name: git-clone
+        image: alpine/git:latest
+        command:
+          - sh
+          - -c
+        args:
+          - git clone https://github.com/walthertimmer/python-data-engineering.git /workspace
+        volumeMounts:
+          - name: scripts-volume
+            mountPath: /workspace
       container:
-        image: ghcr.io/walthertimmer/python-data-engineering/python-scripts:latest
-        command: ["python", "/scripts/10_extract_rdw_vehicles.py"]
+        image: ghcr.io/walthertimmer/python-data-engineering/polars:latest
+        command: ["python", "/workspace/PythonScripts/10_extract_rdw_vehicles.py"]
         imagePullPolicy: Always
         resources:
           requests:
             memory: "256Mi"
             cpu: "250m"
+          limits:
+            memory: "10Gi" 
+            cpu: "6"
         env:
           - name: S3_ACCESS_KEY_ID
             valueFrom:
@@ -68,6 +97,8 @@ spec:
         volumeMounts:
           - name: workdir
             mountPath: /workdir
+          - name: scripts-volume
+            mountPath: /workspace
         workingDir: /workdir
         securityContext:
           runAsNonRoot: true
@@ -77,19 +108,45 @@ spec:
       volumes:
         - name: workdir
           emptyDir: {}
+        - name: scripts-volume
+          emptyDir: {}
 
-    # retryStrategy:
-    #   limit: 1
-    #   retryPolicy: OnError
-    activeDeadlineSeconds: 72000  # Must complete within 20 hour
-    ttlStrategy:
-      secondsAfterCompletion: 604800  # 7 days (7 * 24 * 60 * 60)
-      successfulWorkflowTTL: "168h"   # 7 days in hours
-      failedWorkflowTTL: "168h"       # 7 days in hours
-    podGC:
-      strategy: OnWorkflowCompletion
-      labelSelector:
-        matchLabels:
-          workflows.argoproj.io/completed: "true"
-      minSuccessfulWorkflowsToRetain: 1
-      minFailedWorkflowsToRetain: 1
+    - name: notify-status
+      steps:
+      - - name: send-slack
+          template: slack-notification
+          arguments:
+            parameters:
+            - name: status
+              value: "{{workflow.status}}"
+
+    - name: slack-notification
+      inputs:
+        parameters:
+        - name: status
+      container:
+        image: curlimages/curl
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          MESSAGE=$(cat << EOF
+          *Workflow Details*
+          • Name: {{workflow.name}}
+          • Status: {{inputs.parameters.status}}
+          • Namespace: {{workflow.namespace}}
+          • ID: {{workflow.uid}}
+          • Start: {{workflow.creationTimestamp}}
+          • Duration: {{workflow.duration}}
+          • Node: {{pod.name}}
+          EOF
+          )
+          echo "Sending Slack notification: $MESSAGE"
+          curl -X POST -H 'Content-type: application/json' \
+          --data "{\"text\":\"$MESSAGE\"}" \
+          $(SLACK_WEBHOOK_URL) 2>&1
+        env:
+        - name: SLACK_WEBHOOK_URL
+          valueFrom:
+            secretKeyRef:
+              name: python-data-engineering
+              key: SLACK_WEBHOOK_URL

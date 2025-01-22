@@ -19,7 +19,6 @@ import sys
 import io
 from datetime import datetime
 from typing import Optional, List, Dict, Union
-import json
 import time
 import requests
 from dotenv import load_dotenv
