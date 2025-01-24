@@ -24,6 +24,7 @@ import requests
 from dotenv import load_dotenv
 import boto3
 from botocore.exceptions import ClientError
+from botocore.config import Config
 from dateutil.relativedelta import relativedelta
 import polars as pl
 
@@ -53,13 +54,20 @@ def get_s3_client():
     s3_secret_key = get_env_var("S3_SECRET_ACCESS_KEY")
     s3_endpoint_url = get_env_var("S3_ENDPOINT_URL")
     logger.debug("Creating S3 client with endpoint: %s", s3_endpoint_url)
+    s3_config = Config(
+        retries = dict(
+            max_attempts = 10,  # Increase from default 4
+            mode = 'adaptive'   # Automatically handle throttling
+        )
+    )
     return boto3.client(
         's3',
         aws_access_key_id=s3_access_key,
         aws_secret_access_key=s3_secret_key,
         endpoint_url=s3_endpoint_url,
         verify=True,
-        use_ssl=True
+        use_ssl=True,
+        config=s3_config
     )
 
 def get_last_run_timestamp(bucket_name, prefix):
