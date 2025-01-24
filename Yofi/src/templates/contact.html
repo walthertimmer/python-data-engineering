@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Contact YOFI{% endblock %}
+
+{% block content %}
+    <h2>Contact</h2>
+    <div class="contact-content">
+        <div class="contact-info">
+            <h3>Neem contact met ons op</h3>
+            <p>Email: hallo@yofi.nl</p>
+            <p>Adres: Utrecht, Nederland</p>
+        </div>
+        
+        <div class="contact-form">
+            <h3>Stuur ons een bericht</h3>
+            <form method="POST" action="{{ url_for('contact') }}">
+                <div class="form-group">
+                    <label for="name">Naam:</label>
+                    <input type="text" id="name" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="website">website:</label>
+                    <input type="url" id="website" name="website" required>
+                </div>
+                <div class="form-group">
+                    <label for="message">Bericht:</label>
+                    <textarea id="message" name="message" required></textarea>
+                </div>
+                <button type="submit">Versturen</button>
+            </form>
+        </div>
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="flash-message">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+{% endblock %}
