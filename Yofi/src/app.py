@@ -28,6 +28,7 @@ def contact():
         try:
             # Get form data
             name = request.form['name']
+            telephone = request.form['telephone']
             email = request.form['email']
             website = request.form['website']
             message = request.form['message']
@@ -36,6 +37,7 @@ def contact():
             slack_message = {
                 "text": f"New Contact Form Submission\n"
                         f"*Name:* {name}\n"
+                        f"*Telefoon:* {telephone}\n"
                         f"*Email:* {email}\n"
                         f"*Website:* {website}\n"
                         f"*Message:* {message}"
