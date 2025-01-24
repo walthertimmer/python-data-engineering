@@ -17,15 +17,15 @@ import logging
 import os
 import sys
 from datetime import datetime
-from typing import Optional, List, Dict, Union
+from typing import Optional, List, Dict
 import time
+import hashlib
 import requests
 from dotenv import load_dotenv
 import boto3
 from botocore.exceptions import ClientError
 from dateutil.relativedelta import relativedelta
 import polars as pl
-import hashlib
 
 try:
     load_dotenv()
@@ -51,7 +51,7 @@ def get_s3_client():
     """Create S3 client with custom endpoint"""
     s3_access_key = get_env_var("S3_ACCESS_KEY_ID")
     s3_secret_key = get_env_var("S3_SECRET_ACCESS_KEY")
-    s3_endpoint_url = get_env_var("S3_ENDPOINT_URL")   
+    s3_endpoint_url = get_env_var("S3_ENDPOINT_URL")
     logger.debug("Creating S3 client with endpoint: %s", s3_endpoint_url)
     return boto3.client(
         's3',
@@ -86,7 +86,7 @@ def save_last_run_timestamp(bucket_name, prefix):
     local_timestamp_file = "/tmp/last_run_timestamp.txt"
     logger.info("Saving last run timestamp to S3: %s", timestamp)
     try:
-        with open(local_timestamp_file, 'w') as f:
+        with open(local_timestamp_file, 'w', encoding='utf-8') as f:
             f.write(timestamp)
         save_to_s3(
             file_path=local_timestamp_file,
@@ -116,9 +116,9 @@ def get_date_filter(last_run: str) -> str:
     return ""
 
 def fetch_rdw_data(
-    base_url: str, 
-    offset: int, 
-    limit: int = 1000, 
+    base_url: str,
+    offset: int,
+    limit: int = 1000,
     max_retries: int = 3) -> List[Dict]:
     """Fetch data from RDW API with pagination and small sleep
     
@@ -168,6 +168,7 @@ def fetch_rdw_data(
     return None  # Added explicit return None for when all retries fail
 
 def calculate_file_hash(file_path):
+    """Calculate SHA256 hash of a file"""
     sha256_hash = hashlib.sha256()
     try:
         with open(file_path, 'rb') as f:
@@ -179,8 +180,8 @@ def calculate_file_hash(file_path):
         sys.exit(1)
 
 def save_to_s3(
-    file_path: str, 
-    bucket_name: str, 
+    file_path: str,
+    bucket_name: str,
     object_key: str) -> None:
     """Upload a file to S3 using direct file transfer"""
     try:
@@ -195,32 +196,31 @@ def save_to_s3(
         logger.debug("File path: %s", file_path)
         logger.debug("Object_key: %s", object_key)
         logger.debug("Extra_args: %s", extra_args)
-        
         response = s3_client.upload_file(
-            file_path, 
-            bucket_name, 
+            file_path,
+            bucket_name,
             object_key,
             ExtraArgs=extra_args
         )
         logger.info("File uploaded successfully: %s", response)
     except Exception as e:
-        logger.error(f"Failed to upload to S3: {str(e)}")
+        logger.error("Failed to upload to S3: %s", str(e))
         raise
 
 def save_checkpoint(bucket_name: str, prefix: str, offset: int) -> None:
     """Save current processing offset to S3"""
-    logger.info("Saving checkpoint to S3 at offset %d", offset)  
+    logger.info("Saving checkpoint to S3 at offset %d", offset)
     local_checkpoint_file = "/tmp/checkpoint.txt"
     checkpoint_data = f"{offset}\n{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     try:
         logger.info("Writing checkpoint data locally: %s", checkpoint_data)
-        with open(local_checkpoint_file, 'w') as f:
-                f.write(checkpoint_data)   
+        with open(local_checkpoint_file, 'w', encoding='utf-8') as f:
+            f.write(checkpoint_data)
         save_to_s3(
             file_path=local_checkpoint_file,
             bucket_name=bucket_name,
             object_key=f"{prefix}checkpoint.txt"
-        ) 
+        )
         logger.info("Saving checkpoint to S3 successful")
     except Exception as e:
         logger.error("Failed to save checkpoint to S3: %s", str(e))
@@ -248,7 +248,7 @@ def get_checkpoint(bucket_name: str, prefix: str) -> int:
     except Exception as e:
         logger.error("Error reading checkpoint: %s", str(e))
         return 0
-    
+
 def cleanup_checkpoint(bucket_name: str, prefix: str) -> None:
     """Delete checkpoint file after successful run"""
     checkpoint_file = f"{prefix}checkpoint.txt"
@@ -266,7 +266,8 @@ def get_configuration() -> tuple[str, str, int, int]:
     target_prefix = get_env_var("TARGET_LOCATION", "raw/rdw-vehicles/")
     batch_size = 10000
     save_per_x = 100000
-    logger.info("Using config: %s, %s, %d, %d", bucket_name, target_prefix, batch_size, save_per_x)
+    logger.info("Using config; bucket: %s, target_prefix: %s, batch_size: %d, save_per_x: %d",
+                bucket_name, target_prefix, batch_size, save_per_x)
     return bucket_name, target_prefix, batch_size, save_per_x
 
 def construct_api_url(bucket_name: str, target_prefix: str) -> str:
@@ -279,11 +280,11 @@ def construct_api_url(bucket_name: str, target_prefix: str) -> str:
     return api_url
 
 def process_data(
-    bucket_name: str, 
-    offset: int, 
-    batch_size: int, 
-    url: str, 
-    save_per_x: int, 
+    bucket_name: str,
+    offset: int,
+    batch_size: int,
+    url: str,
+    save_per_x: int,
     target_prefix: str) -> None:
     """Process data"""
     all_data = []
@@ -304,27 +305,24 @@ def process_data(
                 logging.info("Saving intermediate results")
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 intermediate_file = f"{target_prefix}rdw_vehicles_batch_from_{batch_start_offset}_to_{offset}_{timestamp}.parquet"
-                local_file = f"/tmp/temp.parquet"
-                
-                try: 
+                local_file = "/tmp/temp.parquet"
+                try:
                     # Convert to DataFrame and to parquet
                     df = pl.DataFrame(all_data)
                     df.write_parquet(file=local_file)
-                    
                     # Upload directly from file
                     save_to_s3(
                         file_path=local_file,
                         bucket_name=bucket_name,
                         object_key=intermediate_file
                     )
-                    
                     # Save checkpoint only after successful S3 save
                     save_checkpoint(bucket_name, target_prefix, offset)
                     batch_start_offset = offset
                     all_data = []  # Clear memory
                 except Exception as e:
                     logger.error("Failed to save intermediate results: %s", str(e))
-                    raise                
+                    raise
                 finally:
                     # Cleanup local file after successful run
                     if os.path.exists(local_file):
@@ -338,13 +336,13 @@ def process_data(
     if all_data:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         final_file = f"{target_prefix}rdw_vehicles_final_from_{batch_start_offset}_to_{offset}_{timestamp}.parquet"
-        local_file = f"/tmp/temp.parquet"
+        local_file = "/tmp/temp.parquet"
         logger.info("Saving final results")
         try:
             # Convert to DataFrame and to parquet
             df = pl.DataFrame(all_data)
             df.write_parquet(file=local_file)
-            
+
             save_to_s3(
                 file_path=local_file,
                 bucket_name=bucket_name,
@@ -352,7 +350,7 @@ def process_data(
             )
             save_last_run_timestamp(bucket_name, target_prefix)
             all_data = []  # Clear memory
-            
+
             # Cleanup checkpoint file after successful run
             cleanup_checkpoint(bucket_name, target_prefix)
         except Exception as e:
@@ -363,14 +361,14 @@ def process_data(
             if os.path.exists(local_file):
                 logger.info("Cleaning up final local file")
                 os.remove(local_file)
-               
+
     logger.info("All data processed successfully")
 
 def main() -> None:
     """Main function to extract RDW data and save to S3"""
     try:
         start_time = datetime.now()
-        bucket_name, target_prefix, batch_size, save_per_x = get_configuration()      
+        bucket_name, target_prefix, batch_size, save_per_x = get_configuration()
         url = construct_api_url(bucket_name, target_prefix)
         offset = get_checkpoint(bucket_name, target_prefix)
         process_data(bucket_name, offset, batch_size, url, save_per_x, target_prefix)
