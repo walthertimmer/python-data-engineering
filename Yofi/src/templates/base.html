@@ -4,13 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles/main.css') }}">
-    <title>YOFI | {% block title %}{% endblock %}</title>
+    <title>yofi | {% block title %}{% endblock %}</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='images/yofi-favicon.ico') }}">
 </head>
 <body>
     <header>
         <nav class="navbar">
             <div class="logo">
                 <img src="{{ url_for('static', filename='images/yofi-logo.png') }}" alt="YOFI Logo">
+                <p><span class="brand-color">yofi</span></p>
             </div>
             <ul class="nav-links">
                 <li><a href="{{ url_for('home') }}">home</a></li>
@@ -26,10 +28,10 @@
     <footer>
         <div class="footer-content">
             <div class="footer-links">
-                <p>&copy; {{ year }} YOFI | <a href="{{ url_for('privacy') }}">privacy</a></p>
+                <p>&copy; {{ year }} <span class="brand-color">yofi</span> | <a href="{{ url_for('privacy') }}">privacy</a></p>
             </div>
             <div class="footer-made">
-                <p>Gemaakt met ❤️ in Utrecht</p>
+                <p>gemaakt met ❤️ in utrecht</p>
             </div>
         </div>
     </footer>

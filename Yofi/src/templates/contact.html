@@ -1,18 +1,19 @@
 {% extends "base.html" %}
 
-{% block title %}Contact YOFI{% endblock %}
+{% block title %}Contact yofi{% endblock %}
 
 {% block content %}
-    <h2>Contact</h2>
+    <h2>contact</h2>
     <div class="contact-content">
-        <div class="contact-info">
-            <h3>Neem contact met ons op</h3>
-            <p>Email: hallo@yofi.nl</p>
-            <p>Adres: Utrecht, Nederland</p>
+        <div class="contact-intro">
+            <p>Bij yofi staan we altijd voor je klaar om jouw vragen te beantwoorden en je te ondersteunen bij al jouw data-uitdagingen.</p>
+            <p>Of je nu op zoek bent naar advies, een samenwerking wilt bespreken, of gewoon meer wilt weten over onze diensten, wij horen graag van je!</p>
+            <p>Vul ons contactformulier in en wij nemen zo snel mogelijk contact met je op. Samen maken we van jouw data een waardevolle bron voor groei en innovatie!</p>
+            <p>We kijken ernaar uit om van je te horen.</p>
         </div>
         
         <div class="contact-form">
-            <h3>Stuur ons een bericht</h3>
+            <h3>stuur ons een bericht</h3>
             <form method="POST" action="{{ url_for('contact') }}">
                 <div class="form-group">
                     <label for="name">Naam:</label>
@@ -36,6 +37,7 @@
                 </div>
                 <button type="submit">Versturen</button>
             </form>
+            <p>Of bereik ons via hallo@yofi.nl.</p>
         </div>
         {% with messages = get_flashed_messages() %}
             {% if messages %}

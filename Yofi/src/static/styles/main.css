@@ -1,5 +1,10 @@
 /* src/static/styles/main.css */
+.brand-color {
+    color: #007bff;
+}
+
 body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     margin: 0;
     padding: 0;
     min-height: 100vh;
@@ -22,9 +27,19 @@ header {
     /* box-shadow: 0 2px 4px rgba(0,0,0,0.1); */
 }
 
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
 .logo img {
     height: 60px;
     width: auto;
+}
+
+.logo p {
+    margin: 0;
 }
 
 .nav-links {
@@ -77,4 +92,142 @@ footer {
 
 .footer-links a:hover {
     color: #666;
+}
+
+/* over ons */
+.over-ons img {
+    width: 100%;
+    max-width: 600px;
+    height: auto;
+    border-radius: 8px;
+    margin: 1rem 0;
+}
+
+/* contact form */
+.contact-form {
+    max-width: 600px;
+    margin: 2rem auto;
+    padding: 2rem;
+    background: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+}
+
+.contact-form h3 {
+    color: #333;
+    margin-bottom: 1.5rem;
+    text-align: center;
+    font-size: 1.8rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #555;
+    font-weight: 500;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: 0.8rem;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 1rem;
+    transition: border-color 0.3s ease;
+    box-sizing: border-box;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.2);
+}
+
+.form-group textarea {
+    min-height: 150px;
+    resize: vertical;
+}
+
+button[type="submit"] {
+    width: 100%;
+    padding: 1rem;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+button[type="submit"]:hover {
+    background: #0056b3;
+}
+
+.flash-message {
+    padding: 1rem;
+    margin: 1rem 0;
+    border-radius: 5px;
+    background: #e3f2fd;
+    color: #014361;
+    text-align: center;
+}
+
+/* datasets frontpage */
+.datasets-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2rem;
+    margin: 2rem 0;
+}
+
+.dataset-card {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.2s ease;
+}
+
+.dataset-card:hover {
+    transform: translateY(-5px);
+}
+
+.dataset-card h3 {
+    margin-top: 0;
+    color: #333;
+}
+
+.dataset-card p {
+    color: #666;
+    margin-bottom: 1rem;
+}
+
+.dataset-card .price {
+    font-weight: bold;
+    color: #007bff;
+}
+
+.dataset-card .cta-button {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    background: #007bff;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    margin-top: 1rem;
+}
+
+@media (max-width: 768px) {
+    .contact-form {
+        margin: 1rem;
+        padding: 1rem;
+    }
 }

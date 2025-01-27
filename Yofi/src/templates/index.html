@@ -1,10 +1,48 @@
 {% extends "base.html" %}
 
-{% block title %}Yielding Opportunities From Information{% endblock %}
+{% block title %}yielding opportunities from information{% endblock %}
 
 {% block content %}
-    <h1>Yielding Opportunities From Information</h1>
+    <h1><span class="brand-color">y</span>ielding <span class="brand-color">o</span>pportunities <span class="brand-color">f</span>rom <span class="brand-color">i</span>nformation</h1>
     <p>Wij ontsluiten, bewerken, verrijken en analyseren (open) data om tot unieke kansen te komen voor publieke en private instellingen.</p>
     <p>De verrijkte data wordt aangeboden via APIs en datasets om in kernprocessen gebruikt te worden en verbeterde resultaten te behalen.</p>
     <p>Niet langer wachten op interne data afdelingen en BICC om de leads aan te leveren en op waarde te schatten.</p>
+
+    <h2>onze datasets</h2>
+    <div class="datasets-grid">
+        <div class="dataset-card">
+            <h3>bedrijven dataset</h3>
+            <p>Complete dataset van Nederlandse bedrijven met KvK informatie, contactgegevens en verrijkte data.</p>
+            <p class="price">Vanaf €10.000/set</p>
+            <a href="{{ url_for('contact') }}" class="cta-button">Meer informatie</a>
+        </div>
+
+        <div class="dataset-card">
+            <h3>vastgoed dataset</h3>
+            <p>Dataset van (commercieel) Nederlands vastgoed inclusief waarderingen en gebruikshistorie.</p>
+            <p class="price">Vanaf €10.000/set</p>
+            <a href="{{ url_for('contact') }}" class="cta-button">Meer informatie</a>
+        </div>
+
+        <div class="dataset-card">
+            <h3>voertuigen dataset</h3>
+            <p>Alle huidige en uitgeschreven Nederlandse voertuigen inclusief schadehistorie.</p>
+            <p class="price">Vanaf €10.000/set</p>
+            <a href="{{ url_for('contact') }}" class="cta-button">Meer informatie</a>
+        </div>
+
+        <div class="dataset-card">
+            <h3>adressen dataset</h3>
+            <p>Alle huidige geldige adressen in Nederland inclusief fraudenotering. Weet zeker dat pakketten juist aankomen en voorkom fraude.</p>
+            <p class="price">Vanaf €10.000/set</p>
+            <a href="{{ url_for('contact') }}" class="cta-button">Meer informatie</a>
+        </div>
+    </div>
+
+    <h2>onze expertise</h2>
+    <p>Wij begrijpen dat de kracht van data pas echt tot zijn recht komt wanneer deze naadloos geïntegreerd is in jouw bedrijfsprocessen.</p>
+    <p>Als bedrijf helpen we organisaties bij het optimaal benutten van onze hoogwaardige datasets door deze slim en efficiënt te koppelen aan bestaande workflows, systemen en applicaties.</p>
+    <p>Onze datasets bieden waardevolle inzichten, maar die inzichten moeten vertaald worden naar actie. 
+        Daarom begeleiden wij bedrijven in het proces van data-integratie, zodat deze inzichten direct bijdragen aan betere besluitvorming, efficiëntere processen en een hogere winstgevendheid.</p>
+    
 {% endblock %}
